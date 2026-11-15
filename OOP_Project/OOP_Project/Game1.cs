@@ -4,6 +4,7 @@ using Microsoft.Xna.Framework.Input;
 using MonoGame.Extended.Timers;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 
 namespace OOP_Project
 {
@@ -14,9 +15,12 @@ namespace OOP_Project
         private SpriteFont _font;
         private float _timer = 0f;
         private Texture2D _enemyTexture;
-        private Texture2D _towerTexture;
         private Texture2D _bulletTexture;
         private Texture2D _towerPlaceTexture;
+        private Texture2D _towerTexture;
+        private Texture2D _towerTexture2;
+        private Texture2D _sellTexture;
+        private List<Texture2D> _towerTextures = new List<Texture2D>();
         private List<Enemy> _enemies = new List<Enemy>();
         private List<Bullet> _bullets = new List<Bullet>();
         private List<Tower> _towers = new List<Tower>();
@@ -47,12 +51,16 @@ namespace OOP_Project
             _font = Content.Load<SpriteFont>("Font1");
             _enemyTexture = Content.Load<Texture2D>("Enemy");
             _towerTexture = Content.Load<Texture2D>("Tower");
+            _towerTexture2 = Content.Load<Texture2D>("Tower2");
             _bulletTexture = Content.Load<Texture2D>("Bullet");
             _towerPlaceTexture = Content.Load<Texture2D>("TowerPlace");
-            _towerPlaces.Add(new TowerPlace(new Vector2(200, 200), _towerPlaceTexture));
-            _towerPlaces.Add(new TowerPlace(new Vector2(900, 400), _towerPlaceTexture));
-            _towerPlaces.Add(new TowerPlace(new Vector2(1200, 200), _towerPlaceTexture));
-            _gameManager = new GameManager(_towerPlaces, _towerTexture, _towers);
+            _sellTexture = Content.Load<Texture2D>("Sell");
+            _towerTextures.Add(_towerTexture);
+            _towerTextures.Add(_towerTexture2);
+            _towerPlaces.Add(new TowerPlace(new Vector2(200, 200), _towerPlaceTexture, _towerTextures));
+            _towerPlaces.Add(new TowerPlace(new Vector2(900, 400), _towerPlaceTexture, _towerTextures));
+            _towerPlaces.Add(new TowerPlace(new Vector2(1200, 200), _towerPlaceTexture, _towerTextures));
+            _gameManager = new GameManager(_towerPlaces, _towers, _sellTexture);
         }
 
         protected override void Update(GameTime gameTime)
@@ -60,7 +68,7 @@ namespace OOP_Project
             if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed || Keyboard.GetState().IsKeyDown(Keys.Escape))
                 GameOver();
 
-            _gameManager.Update(gameTime, _enemies, _enemyTexture);
+            _gameManager.Update(gameTime, _enemies, _enemyTexture, _bullets);
 
             _enemies.RemoveAll(enemy => enemy.IsActive == false);
             for(int i = 0; i < _enemies.Count; i++)
@@ -84,10 +92,12 @@ namespace OOP_Project
 
                 }
             }
+
             foreach(var bullet in _bullets)
             {
                 bullet.Update(gameTime);
             }
+
             foreach (var towerPlace in _towerPlaces)
             {
                 towerPlace.Update(gameTime);
@@ -249,10 +259,11 @@ namespace OOP_Project
     public class Tower
     {
         private Enemy _currentTarget;
-        private TowerMenu _menu;
         private TowerPlace _place;
+        private MouseClick _mouseClick;
+        private List<TowerMenuElement> _menuElements = new List<TowerMenuElement>();
         private float _rangeShooting = 300f;
-        private float _fireRate = 1f;
+        private float _fireRate = 2f;
         public Texture2D Texture { get; private set; }
         public Vector2 Position { get; private set; }
         public Vector2 Pivot {  get; private set; }
@@ -260,29 +271,71 @@ namespace OOP_Project
         public float Rotation { get; private set; }
         public bool IsActive { get; private set; } = true;
         public Rectangle TowerBounds { get; private set; }
-        public Tower(Vector2 position, Texture2D texture, TowerPlace towerPlace)
+        public event Action<Tower, TowerPlace> SellTower;
+        public Tower(Vector2 position, Texture2D texture, TowerPlace towerPlace, Texture2D sellTexture)
         {
             Position = position;
             Texture = texture;
             Pivot = new Vector2(Texture.Width / 2, Texture.Height / 2);
             TowerBounds = new Rectangle((int)(Position.X - Pivot.X), (int)(Position.Y - Pivot.Y), Texture.Width, Texture.Height);
             _place = towerPlace;
-            _menu = new TowerMenu();
-            _menu.OnTowerSelled += OnTowerSelled;
+            _mouseClick = new MouseClick();
+
+            _menuElements.Add(new TowerMenuElement(Position - new Vector2(100, 0), Pivot, sellTexture));
+            _menuElements.Add(new TowerMenuElement(Position - new Vector2(-100, 0), Pivot, sellTexture));
+            _menuElements.Add(new TowerMenuElement(Position - new Vector2(0, 100), Pivot, sellTexture));
+            _menuElements.Add(new TowerMenuElement(Position - new Vector2(0, -100), Pivot, sellTexture));
+
+            foreach (var element in _menuElements)
+            {
+                element.SellTower += OnTowerSelled;
+            }
         }
 
 
         public void Update(GameTime gameTime, List<Enemy> enemies, Texture2D bulletTexture, List<Bullet> bullets)
         {
-            bullets.RemoveAll(bullet => bullet.IsActive == false);
-            FireAtCurrentTarget(gameTime, enemies, bulletTexture, bullets);
-            _menu.Update(gameTime, this);
+            if (IsActive)
+            {
+                FireAtCurrentTarget(gameTime, enemies, bulletTexture, bullets);
+                Rectangle mousePosition = new Rectangle(Mouse.GetState().X, Mouse.GetState().Y, 2, 2);
+                if (_mouseClick.IsClick)
+                {
+                    if (mousePosition.Intersects(TowerBounds))
+                    {
+                        foreach (var element in _menuElements)
+                        {
+                            element.SetActive(true);
+                        }
+                    }
+                }
+                foreach (var element in _menuElements)
+                {
+                    element.Update(gameTime, null, this);
+                }
+                _mouseClick.Update(gameTime);
+            }
         }
 
         public void Draw(SpriteBatch spriteBatch)
         {
-            spriteBatch.Draw(Texture, Position, null, Color.White, Rotation, Pivot, Scale, SpriteEffects.None, 0f);
+            if (IsActive)
+            {
+                spriteBatch.Draw(Texture, Position, null, Color.White, Rotation, Pivot, Scale, SpriteEffects.None, 0f);
+                foreach (var element in _menuElements)
+                {
+                    element.Draw(spriteBatch, 45f);
+                }
+            }
         } 
+        private void OnTowerSelled()
+        {
+            SellTower?.Invoke(this, _place);
+            foreach (var element in _menuElements)
+            {
+                element.SetActive(false);
+            }
+        }
         
         private void FireAtCurrentTarget(GameTime gameTime, List<Enemy> enemies, Texture2D bulletTexture, List<Bullet> bullets)
         {
@@ -294,9 +347,10 @@ namespace OOP_Project
                     return;
                 }
                 Aim(_currentTarget);
-                if (_fireRate >= 1f)
+                if (_fireRate >= 2f)
                 {
                     Shoot(bulletTexture, _currentTarget, bullets);
+                    _fireRate = 0f;
                 }
                 CheckCurrentTargetPosition(_currentTarget);
                 _fireRate += (float)gameTime.ElapsedGameTime.TotalSeconds * 2f;
@@ -340,10 +394,9 @@ namespace OOP_Project
                 _currentTarget = null;
             }
         }
-        private void OnTowerSelled()
+        public void SetActive(bool state)
         {
-            IsActive = false;
-            _place.SetActive(true);
+            IsActive = state;
         }
     }
 
@@ -406,38 +459,56 @@ namespace OOP_Project
 
     public class TowerPlace 
     {
-        private MouseState _previousState;
-        private bool _isClick;
         private Rectangle _mousePosition;
+        private MouseClick _mouseClick;
+        private List<TowerMenuElement> _menuElements = new List<TowerMenuElement>();
         public Vector2 Position { get; private set; }
         public Texture2D Texture { get; private set; }
         public Vector2 Pivot { get; private set; }
         public bool IsActive { get; private set; } = true;
         public Rectangle TowerPlaceBounds { get; private set; }
-        public event Action<TowerPlace> CreateTower;
-        public TowerPlace(Vector2 position, Texture2D texture) {
+        public event Action<TowerPlace, Texture2D> CreateTower;
+        public TowerPlace(Vector2 position, Texture2D texture, List<Texture2D> towerTextures) 
+        {
             Position = position;
             Texture = texture;
             Pivot = new Vector2(Texture.Width / 2, Texture.Height / 2);
             TowerPlaceBounds = new Rectangle((int)(Position.X - Pivot.X), (int)(Position.Y - Pivot.Y), Texture.Width, Texture.Height);
-            _previousState = Mouse.GetState();
+            _mouseClick = new MouseClick();
+
+            _menuElements.Add(new TowerMenuElement(Position + new Vector2(100, 0), Pivot, towerTextures[0]));
+            _menuElements.Add(new TowerMenuElement(Position + new Vector2(-100, 0), Pivot, towerTextures[0]));
+            _menuElements.Add(new TowerMenuElement(Position + new Vector2(0, 100), Pivot, towerTextures[1]));
+            _menuElements.Add(new TowerMenuElement(Position + new Vector2(0, -100), Pivot, towerTextures[1]));
+
+            foreach (var element in _menuElements)
+            {
+                element.CreateTower += OnTowerCreated;
+            }
+            
         }
+
 
         public void Update(GameTime gameTime)
         {
             if (IsActive)
             {
-                MouseState currentState = Mouse.GetState();
-                _isClick = currentState.LeftButton == ButtonState.Pressed && _previousState.LeftButton == ButtonState.Released;
                 _mousePosition = new Rectangle(Mouse.GetState().X, Mouse.GetState().Y, 2, 2);
-                if (_isClick)
+                if (_mouseClick.IsClick)
                 {
                     if (_mousePosition.Intersects(TowerPlaceBounds))
                     {
-                        CreateTower?.Invoke(this);
+                        foreach(var element  in _menuElements)
+                        {
+                            element.SetActive(true);
+                        }
                     }
                 }
-                _previousState = currentState;
+                foreach (var element in _menuElements)
+                {
+                    element.Update(gameTime, this);
+                }
+                _mouseClick.Update(gameTime);
             }
         }
 
@@ -446,6 +517,18 @@ namespace OOP_Project
             if (IsActive)
             {
                 spriteBatch.Draw(Texture, Position, null, Color.White, 0f, Pivot, 1f, SpriteEffects.None, 0f);
+                foreach (var element in _menuElements)
+                {
+                    element.Draw(spriteBatch);
+                }
+            }
+        }
+        private void OnTowerCreated(Texture2D texture)
+        {
+            CreateTower?.Invoke(this, texture);
+            foreach (var element in _menuElements)
+            {
+                element.SetActive(false);
             }
         }
 
@@ -455,32 +538,96 @@ namespace OOP_Project
         }
     }
 
+    public class TowerMenuElement
+    {
+        private MouseClick _mouseClick;
+        private Rectangle _bounds;
+        public Vector2 Position { get; private set; }
+        public Vector2 Pivot { get; private set; }
+        public Texture2D PlaceMenuTexture { get; private set; }
+        public Texture2D TowerMenuTexture { get; private set; }
+        public bool IsActive { get; private set; } = false;
+        public event Action<Texture2D> CreateTower;
+        public event Action SellTower;
+
+        public TowerMenuElement(Vector2 position, Vector2 pivot, Texture2D placeMenuTexture = null, Texture2D towerMenuTexture = null)
+        {
+            Position = position;
+            Pivot = pivot;
+            PlaceMenuTexture = placeMenuTexture;
+            TowerMenuTexture = towerMenuTexture;
+            _mouseClick = new MouseClick();
+            _bounds = new Rectangle((int)(Position.X - Pivot.X), (int)(Position.Y - Pivot.Y), PlaceMenuTexture.Width, PlaceMenuTexture.Height);
+        }
+
+        public void Update(GameTime gameTime, TowerPlace place = null, Tower tower = null)
+        {
+            if (IsActive)
+            {
+                _mouseClick.Update(gameTime);
+                Rectangle mousePosition = new Rectangle(Mouse.GetState().X, Mouse.GetState().Y, 2, 2);
+                if (_mouseClick.IsClick && mousePosition.Intersects(_bounds))
+                {
+                    if (place != null && place.IsActive)
+                    {
+                        CreateTower?.Invoke(this.PlaceMenuTexture);
+                    }
+                    else if (tower != null && tower.IsActive)
+                    {
+                        SellTower?.Invoke();
+                    }
+                }
+            }
+        }
+
+        public void Draw(SpriteBatch spriteBatch, float rotation = 0f)
+        {
+            if (IsActive)
+            {
+                spriteBatch.Draw(PlaceMenuTexture, Position, null, Color.White, rotation, Pivot, 0.5f, SpriteEffects.None, 0f);
+            }
+        }
+        public void SetActive(bool state)
+        {
+            IsActive = state;
+        }
+
+    }
+
     public class GameManager
     {
         private List<TowerPlace> _places;
         private List<Tower> _towers;
-        private Texture2D _towerTexture;
+        private Texture2D _sellTexture;
         private float _timer = 0f;
 
-        public GameManager(List<TowerPlace> places, Texture2D towerTexture, List<Tower> towers)
+        public GameManager(List<TowerPlace> places, List<Tower> towers, Texture2D sellTexture)
         {
             _places = places;
-            _towerTexture = towerTexture;
             _towers = towers;
+            _sellTexture = sellTexture;
             foreach (var place in _places)
             {
                 place.CreateTower += OnTowerCreated;
             }
         }
 
-        public void Update(GameTime gameTime, List<Enemy> enemies, Texture2D enemyTexture)
+        public void Update(GameTime gameTime, List<Enemy> enemies, Texture2D enemyTexture, List<Bullet> bullets)
         {
             CreateEnemies(gameTime, enemies, enemyTexture);
+            bullets.RemoveAll(bullet => bullet.IsActive == false);
+        }
+        private void OnTowerSelled(Tower tower, TowerPlace place)
+        {
+            tower.SetActive(false);
+            place.SetActive(true);
         }
 
-        private void OnTowerCreated(TowerPlace towerPlace)
+        private void OnTowerCreated(TowerPlace towerPlace, Texture2D texture)
         {
-            _towers.Add(new Tower(towerPlace.Position, _towerTexture, towerPlace));
+            Tower tower = new Tower(towerPlace.Position, texture, towerPlace, _sellTexture);
+            _towers.Add(tower);
+            tower.SellTower += OnTowerSelled;
             towerPlace.SetActive(false);
         }
 
@@ -499,37 +646,28 @@ namespace OOP_Project
             {
                 place.CreateTower -= OnTowerCreated;
             }
+            foreach (var tower in _towers)
+            {
+                tower.SellTower -= OnTowerSelled;
+            }
         }
     }
 
-    public class TowerMenu
+    public class MouseClick
     {
         private MouseState _previousState;
-        private bool _isClick;
-        public event Action OnTowerSelled;
-        public TowerMenu()
+        public bool IsClick { get; private set; } = false;
+
+        public MouseClick()
         {
             _previousState = Mouse.GetState();
         }
 
-        public void Update(GameTime gameTime, Tower tower)
+        public void Update(GameTime gameTime)
         {
             MouseState currentState = Mouse.GetState();
-            _isClick = currentState.LeftButton == ButtonState.Pressed && _previousState.LeftButton == ButtonState.Released;
-            Rectangle _mousePosition = new Rectangle(Mouse.GetState().X, Mouse.GetState().Y, 2, 2);
-            if (_isClick)
-            {
-                if (_mousePosition.Intersects(tower.TowerBounds))
-                {
-                    SellTower(tower);
-                }
-            }
+            IsClick = currentState.LeftButton == ButtonState.Pressed && _previousState.LeftButton == ButtonState.Released;
             _previousState = currentState;
-        }
-
-        private void SellTower(Tower tower)
-        {
-            OnTowerSelled?.Invoke();
         }
     }
 }
