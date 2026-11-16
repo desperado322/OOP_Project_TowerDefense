@@ -2,6 +2,7 @@
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using MonoGame.Extended.Timers;
+using SharpDX.Direct2D1.Effects;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -12,15 +13,15 @@ namespace OOP_Project
     {
         private GraphicsDeviceManager _graphics;
         private SpriteBatch _spriteBatch;
-        private SpriteFont _font;
-        private float _timer = 0f;
         private Texture2D _enemyTexture;
         private Texture2D _bulletTexture;
+        private Texture2D _bulletTexture2;
         private Texture2D _towerPlaceTexture;
         private Texture2D _towerTexture;
         private Texture2D _towerTexture2;
         private Texture2D _sellTexture;
         private List<Texture2D> _towerTextures = new List<Texture2D>();
+        private List<Texture2D> _bulletTextures = new List<Texture2D>();
         private List<Enemy> _enemies = new List<Enemy>();
         private List<Bullet> _bullets = new List<Bullet>();
         private List<Tower> _towers = new List<Tower>();
@@ -48,19 +49,21 @@ namespace OOP_Project
         protected override void LoadContent()
         {
             _spriteBatch = new SpriteBatch(GraphicsDevice);
-            _font = Content.Load<SpriteFont>("Font1");
             _enemyTexture = Content.Load<Texture2D>("Enemy");
             _towerTexture = Content.Load<Texture2D>("Tower");
             _towerTexture2 = Content.Load<Texture2D>("Tower2");
             _bulletTexture = Content.Load<Texture2D>("Bullet");
+            _bulletTexture2 = Content.Load<Texture2D>("Bullet2");
             _towerPlaceTexture = Content.Load<Texture2D>("TowerPlace");
             _sellTexture = Content.Load<Texture2D>("Sell");
             _towerTextures.Add(_towerTexture);
             _towerTextures.Add(_towerTexture2);
+            _bulletTextures.Add(_bulletTexture);
+            _bulletTextures.Add(_bulletTexture2);
             _towerPlaces.Add(new TowerPlace(new Vector2(200, 200), _towerPlaceTexture, _towerTextures));
             _towerPlaces.Add(new TowerPlace(new Vector2(900, 400), _towerPlaceTexture, _towerTextures));
             _towerPlaces.Add(new TowerPlace(new Vector2(1200, 200), _towerPlaceTexture, _towerTextures));
-            _gameManager = new GameManager(_towerPlaces, _towers, _sellTexture);
+            _gameManager = new GameManager(_towerPlaces, _towers, _sellTexture, _towerTextures, _bulletTextures);
         }
 
         protected override void Update(GameTime gameTime)
@@ -69,7 +72,6 @@ namespace OOP_Project
                 GameOver();
 
             _gameManager.Update(gameTime, _enemies, _enemyTexture, _bullets);
-
             _enemies.RemoveAll(enemy => enemy.IsActive == false);
             for(int i = 0; i < _enemies.Count; i++)
             {
@@ -82,12 +84,11 @@ namespace OOP_Project
             }   
             if (_enemies.Count > 0)
             {
-                _towers.RemoveAll(tower => tower.IsActive == false);
                 foreach(var tower in _towers)
                 {
                     if (tower.IsActive)
                     {
-                        tower.Update(gameTime, _enemies, _bulletTexture, _bullets);
+                        tower.Update(gameTime, _enemies);
                     }
 
                 }
@@ -140,12 +141,17 @@ namespace OOP_Project
         
     }
 
+    public interface IStrategy
+    {
+        Enemy FindTarget(List<Enemy> enemies, Tower tower);
+    }
+
     public class Enemy
     {
         private float _speed = 150f;
         private float _traveledDistance = 0f;
-        private float _health = 100f;
         private ArcLengthParametrization _arcLengthParametrization;
+        public float Health;
         public Texture2D Texture {  get; private set; }
         public Vector2 Position { get; private set; }
         public float Scale { get; private set; } = 1f;
@@ -155,9 +161,10 @@ namespace OOP_Project
         public float Timer { get; private set; }
         public List<Vector2> Points { get; private set; } = new List<Vector2>() { Vector2.Zero, Vector2.Zero, new Vector2(300, 900), new Vector2(800, 100), new Vector2(1700, 700) };
         
-        public Enemy(Texture2D texture)
+        public Enemy(Texture2D texture, float health)
         {
             Texture = texture;
+            Health = health;
             Pivot = new Vector2(Texture.Width / 2, Texture.Height / 2);
             _arcLengthParametrization = new ArcLengthParametrization(Points);
         }
@@ -173,8 +180,8 @@ namespace OOP_Project
         }
         public void TakeDamage(float damage)
         {
-            _health -= damage;
-            if (_health <= 0f)
+            Health -= damage;
+            if (Health <= 0f)
             {
                 IsActive = false;
             }
@@ -256,15 +263,21 @@ namespace OOP_Project
         }
     }
 
-    public class Tower
+    public abstract class Tower
     {
-        private Enemy _currentTarget;
-        private TowerPlace _place;
-        private MouseClick _mouseClick;
-        private List<TowerMenuElement> _menuElements = new List<TowerMenuElement>();
-        private float _rangeShooting = 300f;
-        private float _fireRate = 2f;
-        public Texture2D Texture { get; private set; }
+        protected TowerPlace _place;
+        protected MouseClick _mouseClick;
+        protected BulletPool _bullets;
+        protected object _strategy;
+        protected List<object> _strategies;
+        protected List<TowerMenuElement> _menuElements = new List<TowerMenuElement>();
+        protected float _rangeShooting;
+        protected float _fireRate;
+        protected float _bulletDamage;
+        protected float _bulletSpeed;
+        protected Enemy _currentTarget;
+        private Texture2D _texture;
+        public TowerStats Stats { get; private set; }
         public Vector2 Position { get; private set; }
         public Vector2 Pivot {  get; private set; }
         public float Scale { get; private set; } = 1f;
@@ -272,13 +285,21 @@ namespace OOP_Project
         public bool IsActive { get; private set; } = true;
         public Rectangle TowerBounds { get; private set; }
         public event Action<Tower, TowerPlace> SellTower;
-        public Tower(Vector2 position, Texture2D texture, TowerPlace towerPlace, Texture2D sellTexture)
+        public Tower(Vector2 position, TowerStats stats, TowerPlace towerPlace, Texture2D sellTexture, List<object> strategies)
         {
+            Stats = stats;
             Position = position;
-            Texture = texture;
-            Pivot = new Vector2(Texture.Width / 2, Texture.Height / 2);
-            TowerBounds = new Rectangle((int)(Position.X - Pivot.X), (int)(Position.Y - Pivot.Y), Texture.Width, Texture.Height);
+            _texture = Stats.Texture;
+            _rangeShooting = Stats.Range;
+            _fireRate = Stats.FireRate;
+            _bulletDamage = Stats.BulletDamage;
+            _bulletSpeed = Stats.BulletSpeed;
             _place = towerPlace;
+            _strategies = strategies;
+            _strategy = _strategies[1];
+            _bullets = new BulletPool(Stats.BulletTexture, this, _bulletDamage, _bulletSpeed);
+            Pivot = new Vector2(_texture.Width / 2, _texture.Height / 2);
+            TowerBounds = new Rectangle((int)(Position.X - Pivot.X), (int)(Position.Y - Pivot.Y), _texture.Width, _texture.Height);
             _mouseClick = new MouseClick();
 
             _menuElements.Add(new TowerMenuElement(Position - new Vector2(100, 0), Pivot, sellTexture));
@@ -290,14 +311,17 @@ namespace OOP_Project
             {
                 element.SellTower += OnTowerSelled;
             }
+
+            _strategies = strategies;
         }
 
 
-        public void Update(GameTime gameTime, List<Enemy> enemies, Texture2D bulletTexture, List<Bullet> bullets)
+        public virtual void Update(GameTime gameTime, List<Enemy> enemies)
         {
             if (IsActive)
             {
-                FireAtCurrentTarget(gameTime, enemies, bulletTexture, bullets);
+                _bullets.Update(gameTime);
+                FireAtCurrentTarget(gameTime, enemies);
                 Rectangle mousePosition = new Rectangle(Mouse.GetState().X, Mouse.GetState().Y, 2, 2);
                 if (_mouseClick.IsClick)
                 {
@@ -317,18 +341,19 @@ namespace OOP_Project
             }
         }
 
-        public void Draw(SpriteBatch spriteBatch)
+        public virtual void Draw(SpriteBatch spriteBatch)
         {
             if (IsActive)
             {
-                spriteBatch.Draw(Texture, Position, null, Color.White, Rotation, Pivot, Scale, SpriteEffects.None, 0f);
+                _bullets.Draw(spriteBatch);
+                spriteBatch.Draw(_texture, Position, null, Color.White, Rotation, Pivot, Scale, SpriteEffects.None, 0f);
                 foreach (var element in _menuElements)
                 {
                     element.Draw(spriteBatch, 45f);
                 }
             }
         } 
-        private void OnTowerSelled()
+        protected void OnTowerSelled()
         {
             SellTower?.Invoke(this, _place);
             foreach (var element in _menuElements)
@@ -337,7 +362,7 @@ namespace OOP_Project
             }
         }
         
-        private void FireAtCurrentTarget(GameTime gameTime, List<Enemy> enemies, Texture2D bulletTexture, List<Bullet> bullets)
+        protected virtual void FireAtCurrentTarget(GameTime gameTime, List<Enemy> enemies)
         {
             if (_currentTarget != null)
             {
@@ -349,7 +374,7 @@ namespace OOP_Project
                 Aim(_currentTarget);
                 if (_fireRate >= 2f)
                 {
-                    Shoot(bulletTexture, _currentTarget, bullets);
+                    Shoot(_currentTarget);
                     _fireRate = 0f;
                 }
                 CheckCurrentTargetPosition(_currentTarget);
@@ -357,37 +382,23 @@ namespace OOP_Project
             }
             else if (_currentTarget == null)
             {
-                _currentTarget = FindTarget(enemies);
-            }
-        }
-        private Enemy FindTarget(List<Enemy> enemies)
-        {
-            Enemy target = null;
-            float lastTargetPosition = float.MaxValue;
+                dynamic strategy = _strategy;
 
-            foreach (var enemy in enemies)
-            {
-                float squareDistance = Vector2.DistanceSquared(Position, enemy.Position);
-                if (squareDistance <= _rangeShooting * _rangeShooting * Scale && squareDistance < lastTargetPosition)
-                {
-                    lastTargetPosition = squareDistance;
-                    target = enemy;
-                }
+                _currentTarget = strategy.FindTarget(enemies, this);
             }
-            return target;
         }
-        private void Aim(Enemy enemy)
+
+        protected void Aim(Enemy enemy)
         {
             Vector2 direction = enemy.Position - Position;
             Rotation = (float)Math.Atan2(direction.Y, direction.X);
         }
-        private void Shoot(Texture2D bulletTexture, Enemy enemy, List<Bullet> bullets)
+        protected void Shoot(Enemy enemy)
         {
-            var bullet = new Bullet(bulletTexture, this, enemy, 10f);
-            bullets.Add(bullet);
+            _bullets.GetBullet(enemy);
             _fireRate = 0f;
         }
-        private void CheckCurrentTargetPosition(Enemy enemy)
+        protected void CheckCurrentTargetPosition(Enemy enemy)
         {
             if (Vector2.DistanceSquared(Position, enemy.Position) > _rangeShooting * _rangeShooting)
             {
@@ -398,62 +409,139 @@ namespace OOP_Project
         {
             IsActive = state;
         }
+    }  
+
+    public class CannonTower : Tower
+    {
+        public CannonTower(Vector2 position, TowerStats stats, TowerPlace towerPlace, Texture2D sellTexture, List<object> strategies) 
+            : base(position, stats, towerPlace, sellTexture, strategies) { }
+
     }
 
-    public class Bullet
+    public class MachineGunTower : Tower
     {
-        private Tower _tower;
-        private Enemy _enemy;
-        private Rectangle _gameBounds = new Rectangle(0, 0, GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Width, GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Height);
-        private Rectangle _bulletBounds;
-        private Rectangle _enemyBounds;
-        private float _speed = 750f;
-        public Texture2D Texture { get; private set; }
-        public Vector2 Pivot { get; private set; }
-        public Vector2 Position { get; private set; }
-        public float Rotation { get; private set; }
-        public bool IsActive { get; private set; } = true;
-        public float Damage { get; private set; }
-        public Bullet(Texture2D texture, Tower tower, Enemy enemy, float damage)
+        private float _fireRateLevel;
+        private float _fireRateCounter = 10f;
+        public MachineGunTower(Vector2 position, TowerStats stats, TowerPlace towerPlace, Texture2D sellTexture, List<object> strategies)
+            : base(position, stats, towerPlace, sellTexture, strategies) 
         {
-            Texture = texture;
-            Pivot = new Vector2(Texture.Height / 2, Texture.Width / 2);
-            _tower = tower;
-            _enemy = enemy;
-            Position = _tower.Position;
-            Damage = damage;
-        }
-        public void Update(GameTime gameTime)
-        {
-            BulletMove(gameTime);
-            CheckCollision();
+            _fireRateLevel = _fireRate;
         }
 
-        public void Draw(SpriteBatch spriteBatch)
+        protected override void FireAtCurrentTarget(GameTime gameTime, List<Enemy> enemies)
         {
-            spriteBatch.Draw(Texture, Position, null, Color.White, Rotation, Pivot, 1f, SpriteEffects.None, 0f);
-        }
-
-        private void BulletMove(GameTime gameTime)
-        {
-            Vector2 direction = (_enemy.Position + _enemy.Pivot * 2) - (_tower.Position + _tower.Pivot);
-            direction.Normalize();
-            Position += direction * _speed * (float)gameTime.ElapsedGameTime.TotalSeconds;
-            Rotation = (float)Math.Atan2(direction.Y, direction.X);
-        }
-        private void CheckCollision()
-        {
-            _enemyBounds = new Rectangle((int)_enemy.Position.X, (int)_enemy.Position.Y, _enemy.Texture.Width, _enemy.Texture.Height);
-            _bulletBounds = new Rectangle((int)Position.X, (int)Position.Y, Texture.Width, Texture.Height);
-            if (_bulletBounds.Intersects(_enemyBounds) || !_gameBounds.Contains(_bulletBounds))
+            if (_currentTarget != null)
             {
-                DestroyBullet(this);
-                _enemy.TakeDamage(Damage);
+                if (!_currentTarget.IsActive)
+                {
+                    _currentTarget = null;
+                    return;
+                }
+                Aim(_currentTarget);
+                if (_fireRate >= _fireRateLevel)
+                {
+                    Shoot(_currentTarget);
+                    System.Diagnostics.Debug.WriteLine((float)gameTime.ElapsedGameTime.TotalSeconds);
+                    _fireRate = 0f;
+                    _fireRateLevel -= _fireRateCounter * (float)gameTime.ElapsedGameTime.TotalSeconds;
+                    if (_fireRateLevel <= 0f)
+                    {
+                        _fireRateLevel = 2f;
+                    }
+                    else if (_fireRateLevel <= 1f)
+                    {
+                        _fireRateCounter = 5f;
+                    }
+                }
+                CheckCurrentTargetPosition(_currentTarget);
+                _fireRate += (float)gameTime.ElapsedGameTime.TotalSeconds * 2f;
+            }
+            else if (_currentTarget == null)
+            {
+                dynamic strategy = _strategy;
+
+                _currentTarget = strategy.FindTarget(enemies, this);
             }
         }
-        private void DestroyBullet(Bullet bullet)
+    }
+
+    public class ClosestAttackStrategy : IStrategy
+    {
+        public Enemy FindTarget(List<Enemy> enemies, Tower tower)
         {
-            IsActive = false;
+            Enemy target = null;
+            float lastTargetPosition = float.MaxValue;
+
+            foreach (var enemy in enemies)
+            {
+                float squareDistance = Vector2.DistanceSquared(tower.Position, enemy.Position);
+                if (squareDistance <= Math.Pow(tower.Stats.Range, 2) * tower.Scale && squareDistance < lastTargetPosition)
+                {
+                    lastTargetPosition = squareDistance;
+                    target = enemy;
+                }
+            }
+            return target;
+        }
+    }
+    public class FirstAttackStrategy : IStrategy
+    {
+        public Enemy FindTarget(List<Enemy> enemies, Tower tower)
+        {
+            Enemy target = null;
+            float lastTargetPosition = float.MaxValue;
+
+            foreach (var enemy in enemies)
+            {
+                float squareDistance = Vector2.DistanceSquared(tower.Position, enemy.Position);
+                if (squareDistance <= Math.Pow(tower.Stats.Range, 2) * tower.Scale && squareDistance < lastTargetPosition)
+                {
+                    lastTargetPosition = squareDistance;
+                    target = enemy;
+                    break;
+                }
+            }
+            return target;
+        }
+    }
+    public class MaxHPAttackStrategy : IStrategy
+    {
+        public Enemy FindTarget(List<Enemy> enemies, Tower tower)
+        {
+            Enemy target = null;
+            float lastTargetPosition = float.MaxValue;
+            float maxHP = float.MinValue;
+
+            foreach (var enemy in enemies)
+            {
+                float squareDistance = Vector2.DistanceSquared(tower.Position, enemy.Position);
+                if (squareDistance <= Math.Pow(tower.Stats.Range, 2) * tower.Scale && enemy.Health > maxHP)
+                {
+                    lastTargetPosition = squareDistance;
+                    target = enemy;
+                }
+            }
+            return target;
+        }
+    }
+
+    public class TowerStats
+    {
+        public Texture2D Texture {  get; private set; }
+        public float Range {  get; private set; }
+        public float FireRate {  get; private set; }
+        public Texture2D BulletTexture { get; private set; }
+        public float BulletDamage { get; private set; }
+        public float BulletSpeed { get; private set; }
+
+        public TowerStats(Texture2D texture, float range, float fireRate, Texture2D bulletTexture, float bulletDamage, float bulletSpeed)
+        {
+            Texture = texture;
+            Range = range;
+            FireRate = fireRate;
+            BulletTexture = bulletTexture;
+            BulletDamage = bulletDamage;
+            BulletSpeed = bulletSpeed;
         }
     }
 
@@ -594,18 +682,137 @@ namespace OOP_Project
 
     }
 
+    public class Bullet
+    {
+        private Tower _tower;
+        private Enemy _enemy;
+        private Rectangle _gameBounds = new Rectangle(0, 0, GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Width, GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Height);
+        private Rectangle _bulletBounds;
+        private Rectangle _enemyBounds;
+        private float _speed;
+        public Texture2D Texture { get; private set; }
+        public Vector2 Pivot { get; private set; }
+        public Vector2 Position { get; private set; }
+        public float Rotation { get; private set; }
+        public bool IsActive { get; private set; }
+        public float Damage { get; private set; }
+
+        public Bullet(Texture2D texture, Tower tower, float damage, float speed)
+        {
+            Texture = texture;
+            Pivot = new Vector2(Texture.Height / 2, Texture.Width / 2);
+            _tower = tower;
+            Position = _tower.Position;
+            Damage = damage;
+            _speed = speed;
+        }
+        public void Update(GameTime gameTime)
+        {
+            if (IsActive)
+            {
+                BulletMove(gameTime);
+                CheckCollision();
+            }
+        }
+
+        public void Draw(SpriteBatch spriteBatch)
+        {
+            if (IsActive)
+            {
+                spriteBatch.Draw(Texture, Position, null, Color.White, Rotation, Pivot, 1f, SpriteEffects.None, 0f);
+            }
+        }
+
+        private void BulletMove(GameTime gameTime)
+        { 
+            Vector2 direction = (_enemy.Position + _enemy.Pivot) - (_tower.Position + _tower.Pivot);
+            direction.Normalize();
+            Position += direction * _speed * (float)gameTime.ElapsedGameTime.TotalSeconds;
+            Rotation = (float)Math.Atan2(direction.Y, direction.X);
+        }
+        private void CheckCollision()
+        {
+            _enemyBounds = new Rectangle((int)(_enemy.Position.X - Pivot.X / 2), (int)(_enemy.Position.Y - Pivot.Y / 2), _enemy.Texture.Width / 2, _enemy.Texture.Height / 2);
+            _bulletBounds = new Rectangle((int)(Position.X - Pivot.X), (int)(Position.Y - Pivot.Y), Texture.Width, Texture.Height);
+            if (_bulletBounds.Intersects(_enemyBounds) || !_gameBounds.Contains(_bulletBounds))
+            {
+                DestroyBullet(this);
+                _enemy.TakeDamage(Damage);
+            }
+        }
+        private void DestroyBullet(Bullet bullet)
+        {
+            IsActive = false;
+        }
+
+        public void ResetBullet(Enemy enemy)
+        {
+            Position = _tower.Position;
+            _enemy = enemy;
+            IsActive = true;
+        }
+    }
+
+    public class BulletPool
+    {
+        private List<Bullet> _bullets = new List<Bullet>();
+
+        public BulletPool(Texture2D bulletTexture, Tower tower, float damage, float speed)
+        {
+            for (int i = 0; i < 50; i++)
+            {
+                _bullets.Add(new Bullet(bulletTexture, tower, damage, speed));
+            }
+        }
+
+        public void Update(GameTime gameTime)
+        {
+            foreach (Bullet bullet in _bullets)
+            {
+                if (bullet.IsActive)
+                {
+                    bullet.Update(gameTime);
+                }
+            }
+        }
+        public void Draw(SpriteBatch spriteBatch)
+        {
+            foreach (Bullet bullet in _bullets)
+            {
+                if (bullet.IsActive)
+                {
+                    bullet.Draw(spriteBatch);
+                }
+            }
+        }
+
+        public Bullet GetBullet(Enemy enemy)
+        {
+            var bullet = _bullets.Find(bullet => !bullet.IsActive);
+            if (bullet != null)
+            {
+                bullet.ResetBullet(enemy);
+                return bullet;
+            }
+            return null;
+        }
+    }
+
     public class GameManager
     {
+        private Dictionary<Texture2D, TowerStats> _towerConfigs = new Dictionary<Texture2D, TowerStats>();
         private List<TowerPlace> _places;
         private List<Tower> _towers;
+        private List<object> _strategies = new List<object>() { new ClosestAttackStrategy(), new MaxHPAttackStrategy(), new FirstAttackStrategy() };
         private Texture2D _sellTexture;
         private float _timer = 0f;
 
-        public GameManager(List<TowerPlace> places, List<Tower> towers, Texture2D sellTexture)
+        public GameManager(List<TowerPlace> places, List<Tower> towers, Texture2D sellTexture, List<Texture2D> towerTextures, List<Texture2D> bulletTextures)
         {
             _places = places;
             _towers = towers;
             _sellTexture = sellTexture;
+            CreateConfigs(towerTextures[0], towerTextures[1], bulletTextures[0], bulletTextures[1]);
             foreach (var place in _places)
             {
                 place.CreateTower += OnTowerCreated;
@@ -615,30 +822,56 @@ namespace OOP_Project
         public void Update(GameTime gameTime, List<Enemy> enemies, Texture2D enemyTexture, List<Bullet> bullets)
         {
             CreateEnemies(gameTime, enemies, enemyTexture);
-            bullets.RemoveAll(bullet => bullet.IsActive == false);
         }
         private void OnTowerSelled(Tower tower, TowerPlace place)
         {
             tower.SetActive(false);
             place.SetActive(true);
         }
-
-        private void OnTowerCreated(TowerPlace towerPlace, Texture2D texture)
+        private void OnTowerCreated(TowerPlace towerPlace, Texture2D towerTexture)
         {
-            Tower tower = new Tower(towerPlace.Position, texture, towerPlace, _sellTexture);
-            _towers.Add(tower);
+            TowerStats stats = GetStats(towerTexture);
+            Tower tower = null;
+            if (stats == null)
+            {
+                return;
+            }
+            switch (stats.Texture.Name)
+            {
+                case "Tower":
+                    tower = new CannonTower(towerPlace.Position, stats, towerPlace, _sellTexture, _strategies);
+                    break;
+                case "Tower2":
+                    tower = new MachineGunTower(towerPlace.Position, stats, towerPlace, _sellTexture, _strategies);
+                    break;
+            }
             tower.SellTower += OnTowerSelled;
+            _towers.Add(tower);
+
             towerPlace.SetActive(false);
         }
-
         private void CreateEnemies(GameTime gameTime, List<Enemy> enemies, Texture2D enemyTexture)
         {
             _timer -= (float)gameTime.ElapsedGameTime.TotalSeconds;
             if (_timer <= 0)
             {
-                enemies.Add(new Enemy(enemyTexture));
-                _timer = 2f;
+                float health = new Random().Next(1, 100);
+                enemies.Add(new Enemy(enemyTexture, health));
+                _timer = 1f;
             }
+        }
+        private TowerStats GetStats(Texture2D towerTexture)
+        {
+            if (_towerConfigs.TryGetValue(towerTexture, out var stats))
+            {
+                return stats;
+            }
+            return null;
+        }
+        public void CreateConfigs(Texture2D towerTexture1, Texture2D towerTexture2, Texture2D bulletTexture1, Texture2D bulletTexture2)
+        {
+            _towerConfigs.Add(towerTexture1, new TowerStats(towerTexture1, 400f, 5f, bulletTexture1, 50f, 500f));
+            _towerConfigs.Add(towerTexture2, new TowerStats(towerTexture2, 400f, 2f, bulletTexture2, 1f, 750f));
         }
         public void UnloadLevel()
         {
