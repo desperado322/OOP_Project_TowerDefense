@@ -6,6 +6,7 @@ using SharpDX.Direct2D1.Effects;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 
 namespace OOP_Project
 {
@@ -19,6 +20,7 @@ namespace OOP_Project
         private Texture2D _towerPlaceTexture;
         private Texture2D _towerTexture;
         private Texture2D _towerTexture2;
+        private Texture2D _towerTexture3;
         private Texture2D _sellTexture;
         private List<Texture2D> _towerTextures = new List<Texture2D>();
         private List<Texture2D> _bulletTextures = new List<Texture2D>();
@@ -52,12 +54,14 @@ namespace OOP_Project
             _enemyTexture = Content.Load<Texture2D>("Enemy");
             _towerTexture = Content.Load<Texture2D>("Tower");
             _towerTexture2 = Content.Load<Texture2D>("Tower2");
+            _towerTexture3 = Content.Load<Texture2D>("Tower3");
             _bulletTexture = Content.Load<Texture2D>("Bullet");
             _bulletTexture2 = Content.Load<Texture2D>("Bullet2");
             _towerPlaceTexture = Content.Load<Texture2D>("TowerPlace");
             _sellTexture = Content.Load<Texture2D>("Sell");
             _towerTextures.Add(_towerTexture);
             _towerTextures.Add(_towerTexture2);
+            _towerTextures.Add(_towerTexture3);
             _bulletTextures.Add(_bulletTexture);
             _bulletTextures.Add(_bulletTexture2);
             _towerPlaces.Add(new TowerPlace(new Vector2(200, 200), _towerPlaceTexture, _towerTextures));
@@ -143,7 +147,7 @@ namespace OOP_Project
 
     public interface IStrategy
     {
-        Enemy FindTarget(List<Enemy> enemies, Tower tower);
+        T FindTarget<T>(Tower tower, List<Enemy> enemies);
     }
 
     public class Enemy
@@ -169,7 +173,6 @@ namespace OOP_Project
             _arcLengthParametrization = new ArcLengthParametrization(Points);
         }
 
-
         public void Update(GameTime gameTime)
         {
             SplineMover(gameTime);
@@ -188,13 +191,17 @@ namespace OOP_Project
         }
 
         private void SplineMover(GameTime gameTime)
-        {
-            
+        { 
             var previousPosition = Position;
             _traveledDistance += (float)gameTime.ElapsedGameTime.TotalSeconds * _speed;
             Position = _arcLengthParametrization.GetPositionAtDistance(_traveledDistance);
             var direction = Position - previousPosition;
             Rotation = (float)Math.Atan2(direction.Y, direction.X);
+        }
+
+        public void SetActive(bool state)
+        {
+            IsActive = state;
         }
     }
 
@@ -268,8 +275,8 @@ namespace OOP_Project
         protected TowerPlace _place;
         protected MouseClick _mouseClick;
         protected BulletPool _bullets;
-        protected object _strategy;
-        protected List<object> _strategies;
+        protected IStrategy _strategy;
+        protected List<IStrategy> _strategies;
         protected List<TowerMenuElement> _menuElements = new List<TowerMenuElement>();
         protected float _rangeShooting;
         protected float _fireRate;
@@ -285,7 +292,7 @@ namespace OOP_Project
         public bool IsActive { get; private set; } = true;
         public Rectangle TowerBounds { get; private set; }
         public event Action<Tower, TowerPlace> SellTower;
-        public Tower(Vector2 position, TowerStats stats, TowerPlace towerPlace, Texture2D sellTexture, List<object> strategies)
+        public Tower(Vector2 position, TowerStats stats, TowerPlace towerPlace, Texture2D sellTexture, List<IStrategy> strategies)
         {
             Stats = stats;
             Position = position;
@@ -296,7 +303,7 @@ namespace OOP_Project
             _bulletSpeed = Stats.BulletSpeed;
             _place = towerPlace;
             _strategies = strategies;
-            _strategy = _strategies[1];
+            _strategy = _strategies[2];
             _bullets = new BulletPool(Stats.BulletTexture, this, _bulletDamage, _bulletSpeed);
             Pivot = new Vector2(_texture.Width / 2, _texture.Height / 2);
             TowerBounds = new Rectangle((int)(Position.X - Pivot.X), (int)(Position.Y - Pivot.Y), _texture.Width, _texture.Height);
@@ -382,23 +389,20 @@ namespace OOP_Project
             }
             else if (_currentTarget == null)
             {
-                dynamic strategy = _strategy;
-
-                _currentTarget = strategy.FindTarget(enemies, this);
+                _currentTarget = _strategy.FindTarget<Enemy>(this, enemies);
             }
         }
 
-        protected void Aim(Enemy enemy)
+        protected virtual void Aim(Enemy enemy)
         {
             Vector2 direction = enemy.Position - Position;
             Rotation = (float)Math.Atan2(direction.Y, direction.X);
         }
-        protected void Shoot(Enemy enemy)
+        protected virtual void Shoot(Enemy enemy)
         {
             _bullets.GetBullet(enemy);
-            _fireRate = 0f;
         }
-        protected void CheckCurrentTargetPosition(Enemy enemy)
+        protected virtual void CheckCurrentTargetPosition(Enemy enemy)
         {
             if (Vector2.DistanceSquared(Position, enemy.Position) > _rangeShooting * _rangeShooting)
             {
@@ -411,9 +415,15 @@ namespace OOP_Project
         }
     }  
 
+    public class BasicTower : Tower
+    {
+        public BasicTower(Vector2 position, TowerStats stats, TowerPlace towerPlace, Texture2D sellTexture, List<IStrategy> strategies) 
+            : base(position, stats, towerPlace, sellTexture, strategies) { }
+    }
+
     public class CannonTower : Tower
     {
-        public CannonTower(Vector2 position, TowerStats stats, TowerPlace towerPlace, Texture2D sellTexture, List<object> strategies) 
+        public CannonTower(Vector2 position, TowerStats stats, TowerPlace towerPlace, Texture2D sellTexture, List<IStrategy> strategies) 
             : base(position, stats, towerPlace, sellTexture, strategies) { }
 
     }
@@ -421,8 +431,7 @@ namespace OOP_Project
     public class MachineGunTower : Tower
     {
         private float _fireRateLevel;
-        private float _fireRateCounter = 10f;
-        public MachineGunTower(Vector2 position, TowerStats stats, TowerPlace towerPlace, Texture2D sellTexture, List<object> strategies)
+        public MachineGunTower(Vector2 position, TowerStats stats, TowerPlace towerPlace, Texture2D sellTexture, List<IStrategy> strategies)
             : base(position, stats, towerPlace, sellTexture, strategies) 
         {
             _fireRateLevel = _fireRate;
@@ -441,16 +450,10 @@ namespace OOP_Project
                 if (_fireRate >= _fireRateLevel)
                 {
                     Shoot(_currentTarget);
-                    System.Diagnostics.Debug.WriteLine((float)gameTime.ElapsedGameTime.TotalSeconds);
                     _fireRate = 0f;
-                    _fireRateLevel -= _fireRateCounter * (float)gameTime.ElapsedGameTime.TotalSeconds;
-                    if (_fireRateLevel <= 0f)
+                    if (_fireRateLevel >= 0.5f)
                     {
-                        _fireRateLevel = 2f;
-                    }
-                    else if (_fireRateLevel <= 1f)
-                    {
-                        _fireRateCounter = 5f;
+                        _fireRateLevel -= 5f * (float)gameTime.ElapsedGameTime.TotalSeconds;
                     }
                 }
                 CheckCurrentTargetPosition(_currentTarget);
@@ -458,16 +461,46 @@ namespace OOP_Project
             }
             else if (_currentTarget == null)
             {
-                dynamic strategy = _strategy;
-
-                _currentTarget = strategy.FindTarget(enemies, this);
+                _currentTarget = _strategy.FindTarget<Enemy>(this, enemies);
             }
+        }
+    }
+
+    public class FlameThrowerTower : Tower
+    {
+        private List<Enemy> _currentTargets = new List<Enemy>();
+        public FlameThrowerTower(Vector2 position, TowerStats stats, TowerPlace towerPlace, Texture2D sellTexture, List<IStrategy> strategies) 
+            : base(position, stats, towerPlace, sellTexture, strategies ) 
+        {
+            _strategy = new AllInRangeAttackStrategy();
+        }
+
+        protected override void FireAtCurrentTarget(GameTime gameTime, List<Enemy> enemies)
+        {
+            if (_currentTargets.Count > 0)
+            {
+                if (_fireRate >= 1f)
+                {
+                    foreach (var target in _currentTargets)
+                    {
+                        Shoot(target);
+                        CheckCurrentTargetPosition(target);
+                        _fireRate = 0f;
+                    }
+                }
+                _currentTargets.Clear();
+            }
+            else if (_currentTargets.Count == 0)
+            {
+                _currentTargets = _strategy.FindTarget<List<Enemy>>(this, enemies);
+            }
+            _fireRate += (float)gameTime.ElapsedGameTime.TotalSeconds;
         }
     }
 
     public class ClosestAttackStrategy : IStrategy
     {
-        public Enemy FindTarget(List<Enemy> enemies, Tower tower)
+        public T FindTarget<T>(Tower tower, List<Enemy> enemies)
         {
             Enemy target = null;
             float lastTargetPosition = float.MaxValue;
@@ -481,12 +514,13 @@ namespace OOP_Project
                     target = enemy;
                 }
             }
-            return target;
+            return (T)(object)target;
         }
     }
+
     public class FirstAttackStrategy : IStrategy
     {
-        public Enemy FindTarget(List<Enemy> enemies, Tower tower)
+        public T FindTarget<T>(Tower tower, List<Enemy> enemies)
         {
             Enemy target = null;
             float lastTargetPosition = float.MaxValue;
@@ -501,15 +535,15 @@ namespace OOP_Project
                     break;
                 }
             }
-            return target;
+            return (T)(object)target;
         }
     }
+
     public class MaxHPAttackStrategy : IStrategy
     {
-        public Enemy FindTarget(List<Enemy> enemies, Tower tower)
+        public T FindTarget<T>(Tower tower, List<Enemy> enemies)
         {
             Enemy target = null;
-            float lastTargetPosition = float.MaxValue;
             float maxHP = float.MinValue;
 
             foreach (var enemy in enemies)
@@ -517,11 +551,28 @@ namespace OOP_Project
                 float squareDistance = Vector2.DistanceSquared(tower.Position, enemy.Position);
                 if (squareDistance <= Math.Pow(tower.Stats.Range, 2) * tower.Scale && enemy.Health > maxHP)
                 {
-                    lastTargetPosition = squareDistance;
                     target = enemy;
                 }
             }
-            return target;
+            return (T)(object)target;
+        }
+    }
+
+    public class AllInRangeAttackStrategy : IStrategy
+    {
+        public T FindTarget<T>(Tower tower, List<Enemy> enemies)
+        {
+            List<Enemy> targets = new List<Enemy>();
+
+            foreach (var enemy in enemies)
+            {
+                float squareDistance = Vector2.DistanceSquared(tower.Position, enemy.Position);
+                if (squareDistance <= Math.Pow(tower.Stats.Range, 2) * tower.Scale)
+                {
+                    targets.Add(enemy);
+                }
+            }
+            return (T)(object)targets;
         }
     }
 
@@ -565,7 +616,7 @@ namespace OOP_Project
             _mouseClick = new MouseClick();
 
             _menuElements.Add(new TowerMenuElement(Position + new Vector2(100, 0), Pivot, towerTextures[0]));
-            _menuElements.Add(new TowerMenuElement(Position + new Vector2(-100, 0), Pivot, towerTextures[0]));
+            _menuElements.Add(new TowerMenuElement(Position + new Vector2(-100, 0), Pivot, towerTextures[2]));
             _menuElements.Add(new TowerMenuElement(Position + new Vector2(0, 100), Pivot, towerTextures[1]));
             _menuElements.Add(new TowerMenuElement(Position + new Vector2(0, -100), Pivot, towerTextures[1]));
 
@@ -803,7 +854,7 @@ namespace OOP_Project
         private Dictionary<Texture2D, TowerStats> _towerConfigs = new Dictionary<Texture2D, TowerStats>();
         private List<TowerPlace> _places;
         private List<Tower> _towers;
-        private List<object> _strategies = new List<object>() { new ClosestAttackStrategy(), new MaxHPAttackStrategy(), new FirstAttackStrategy() };
+        private List<IStrategy> _strategies = new List<IStrategy>() { new ClosestAttackStrategy(), new MaxHPAttackStrategy(), new FirstAttackStrategy(), new AllInRangeAttackStrategy() };
         private Texture2D _sellTexture;
         private float _timer = 0f;
 
@@ -812,7 +863,7 @@ namespace OOP_Project
             _places = places;
             _towers = towers;
             _sellTexture = sellTexture;
-            CreateConfigs(towerTextures[0], towerTextures[1], bulletTextures[0], bulletTextures[1]);
+            CreateConfigs(towerTextures, bulletTextures);
             foreach (var place in _places)
             {
                 place.CreateTower += OnTowerCreated;
@@ -844,6 +895,9 @@ namespace OOP_Project
                 case "Tower2":
                     tower = new MachineGunTower(towerPlace.Position, stats, towerPlace, _sellTexture, _strategies);
                     break;
+                case "Tower3":
+                    tower = new FlameThrowerTower(towerPlace.Position, stats, towerPlace, _sellTexture, _strategies);
+                    break;
             }
             tower.SellTower += OnTowerSelled;
             _towers.Add(tower);
@@ -868,10 +922,11 @@ namespace OOP_Project
             }
             return null;
         }
-        public void CreateConfigs(Texture2D towerTexture1, Texture2D towerTexture2, Texture2D bulletTexture1, Texture2D bulletTexture2)
+        public void CreateConfigs(List<Texture2D> towerTextures, List<Texture2D> bulletTextures)
         {
-            _towerConfigs.Add(towerTexture1, new TowerStats(towerTexture1, 400f, 5f, bulletTexture1, 50f, 500f));
-            _towerConfigs.Add(towerTexture2, new TowerStats(towerTexture2, 400f, 2f, bulletTexture2, 1f, 750f));
+            _towerConfigs.Add(towerTextures[0], new TowerStats(towerTextures[0], 400f, 5f, bulletTextures[0], 50f, 500f));
+            _towerConfigs.Add(towerTextures[1], new TowerStats(towerTextures[1], 400f, 3f, bulletTextures[1], 1f, 750f));
+            _towerConfigs.Add(towerTextures[2], new TowerStats(towerTextures[2], 500f, 2f, bulletTextures[0], 0.1f, 750f));
         }
         public void UnloadLevel()
         {
