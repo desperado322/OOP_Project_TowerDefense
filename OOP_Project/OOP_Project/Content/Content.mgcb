@@ -10,8 +10,36 @@
 
 #-------------------------------- References --------------------------------#
 
+/reference:references/MonoGame.Extended.Content.Pipeline.dll
+/reference:references/MonoGame.Extended.dll
 
 #---------------------------------- Content ---------------------------------#
+
+#begin Beetle.png
+/importer:TextureImporter
+/processor:TextureProcessor
+/processorParam:ColorKeyColor=255,0,255,255
+/processorParam:ColorKeyEnabled=True
+/processorParam:GenerateMipmaps=False
+/processorParam:PremultiplyAlpha=True
+/processorParam:ResizeToPowerOfTwo=False
+/processorParam:MakeSquare=False
+/processorParam:TextureFormat=Color
+/processorParam:Version=3.8.5.1
+/build:Beetle.png
+
+#begin BlockStrategy.png
+/importer:TextureImporter
+/processor:TextureProcessor
+/processorParam:ColorKeyColor=255,0,255,255
+/processorParam:ColorKeyEnabled=True
+/processorParam:GenerateMipmaps=False
+/processorParam:PremultiplyAlpha=True
+/processorParam:ResizeToPowerOfTwo=False
+/processorParam:MakeSquare=False
+/processorParam:TextureFormat=Color
+/processorParam:Version=3.8.5.1
+/build:BlockStrategy.png
 
 #begin Bullet.png
 /importer:TextureImporter
@@ -124,6 +152,38 @@
 /processorParam:TextureFormat=Color
 /processorParam:Version=3.8.5.1
 /build:Sell.png
+
+#begin spritesheet-texture.png
+/importer:TextureImporter
+/processor:TextureProcessor
+/processorParam:ColorKeyColor=255,0,255,255
+/processorParam:ColorKeyEnabled=True
+/processorParam:GenerateMipmaps=False
+/processorParam:PremultiplyAlpha=True
+/processorParam:ResizeToPowerOfTwo=False
+/processorParam:MakeSquare=False
+/processorParam:TextureFormat=Color
+/processorParam:Version=3.8.5.1
+/build:spritesheet-texture.png
+
+#begin spritesheet.json
+/importer:TexturePackerJsonImporter
+/processor:TexturePackerProcessor
+/processorParam:Version=6.1.1.0
+/build:spritesheet.json
+
+#begin Strategy.png
+/importer:TextureImporter
+/processor:TextureProcessor
+/processorParam:ColorKeyColor=255,0,255,255
+/processorParam:ColorKeyEnabled=True
+/processorParam:GenerateMipmaps=False
+/processorParam:PremultiplyAlpha=True
+/processorParam:ResizeToPowerOfTwo=False
+/processorParam:MakeSquare=False
+/processorParam:TextureFormat=Color
+/processorParam:Version=3.8.5.1
+/build:Strategy.png
 
 #begin Tower.png
 /importer:TextureImporter

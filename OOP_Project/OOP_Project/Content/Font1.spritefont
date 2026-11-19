@@ -5,7 +5,7 @@
          Если делаете кроссплатформенную игру, лучше положить .ttf файл рядом и написать его имя -->
 		<FontName>Arial</FontName>
 
-		<Size>16</Size>
+		<Size>12</Size>
 		<Spacing>1</Spacing>
 		<UseKerning>true</UseKerning>
 		<Style>Regular</Style>

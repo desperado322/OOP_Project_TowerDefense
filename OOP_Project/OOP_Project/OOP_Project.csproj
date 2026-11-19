@@ -14,6 +14,7 @@
   <ItemGroup>
     <PackageReference Include="MonoGame.Aseprite" Version="6.4.1" />
     <PackageReference Include="MonoGame.Extended" Version="6.1.1" />
+    <PackageReference Include="MonoGame.Extended.Content.Pipeline" Version="6.1.1" />
     <PackageReference Include="MonoGame.Framework.WindowsDX" Version="3.8.*" />
     <PackageReference Include="MonoGame.Content.Builder.Task" Version="3.8.*" />
   </ItemGroup>
