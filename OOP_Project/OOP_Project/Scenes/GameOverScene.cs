@@ -8,17 +8,19 @@ namespace OOP_Project.Scenes
 {
     public class GameOverScene : Scene
     {
-        private int _screenWidth;
-        private int _screenHeight;
         private Texture2D _pixel;
         private Rectangle _restartButton;
+        private Rectangle _menuButton;
         private MouseClick _mouseClick;
+        private Vector2 _pivot;
+        private string _restartButtonText = "Рестарт";
+        private string _menuButtonText = "В меню";
+        private string _gameOver = "Игра окончена";
         public GameOverScene(Game1 game) : base(game)
         {
             _game = game;
-            _screenWidth = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Width;
-            _screenHeight = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Height;
-            _restartButton = new Rectangle((int)(_screenWidth / 2 - 50), (int)(_screenHeight / 2 - 50), 100, 50);
+            _restartButton = new Rectangle((int)(game.ScreenWidth / 2 - 100), (int)(game.ScreenHeight / 2 - 100), 100, 50);
+            _menuButton = new Rectangle((int)(game.ScreenWidth / 2 - 100), (int)(game.ScreenHeight / 2), 100, 50);
             _mouseClick = new MouseClick();
         }
 
@@ -28,9 +30,10 @@ namespace OOP_Project.Scenes
         }
         public override void LoadContent()
         {
-            _font = _contentManager.Load<SpriteFont>("Font1");
+            _font = _contentManager.Load<SpriteFont>("UI Font");
             _pixel = new Texture2D(_graphicsDevice, 1, 1);
             _pixel.SetData(new[] { Color.White });
+            _pivot = _font.MeasureString(_restartButtonText) / 2f;
         }
         public override void Update(GameTime gameTime)
         {
@@ -40,18 +43,31 @@ namespace OOP_Project.Scenes
             {
                 _game.SceneManager.ChangeScene(new GamePlayScene(_game));
             }
+            else if (_mouseClick.IsClick && _menuButton.Contains(mousePosition))
+            {
+                _game.SceneManager.ChangeScene(new MenuScene(_game));
+            }
         }
         public override void Draw(GameTime gameTime, SpriteBatch spriteBatch)
         {
-            spriteBatch.DrawString(_font, "Game Over", new Vector2(_screenWidth / 2, 
-                _screenHeight / 2), Color.White, 0f, 
-                new Vector2(_font.Texture.Width / 2, _font.Texture.Height / 2), 2f, SpriteEffects.None, 0f);
-            spriteBatch.Draw(_pixel, _restartButton, Color.White);
+            DrawRestartButton(spriteBatch);
+            DrawMenuButton(spriteBatch);
         }
         public override void UnloadContent()
         {
             _contentManager.Unload();
             base.UnloadContent();
+        }
+
+        private void DrawRestartButton(SpriteBatch spriteBatch)
+        {
+            spriteBatch.Draw(_pixel, _restartButton, Color.White);
+            spriteBatch.DrawString(_font, _restartButtonText, new Vector2(_restartButton.X + _restartButton.Width / 2, _restartButton.Y + _restartButton.Height / 2), Color.Black, 0f, _pivot, 1f, SpriteEffects.None, 0f);
+        }
+        private void DrawMenuButton(SpriteBatch spriteBatch)
+        {
+            spriteBatch.Draw(_pixel, _menuButton, Color.White);
+            spriteBatch.DrawString(_font, _menuButtonText, new Vector2(_menuButton.X + _menuButton.Width / 2, _menuButton.Y + _menuButton.Height / 2), Color.Black, 0f, _pivot, 1f, SpriteEffects.None, 0f);
         }
     }
 }

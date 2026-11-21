@@ -3,14 +3,15 @@ using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using System.Collections.Generic;
 using OOP_Project.Scenes;
+using System.Linq;
 
 namespace OOP_Project
 {
     public class Game1 : Game
     {
         private GraphicsDeviceManager _graphics;
-        private int _screenWidth = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Width;
-        private int _screenHeight = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Height;
+        public int ScreenWidth { get; private set; } = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Width;
+        public int ScreenHeight { get; private set; } = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Height;
         public SpriteFont Font { get; private set; }
         public SpriteBatch SpriteBatch { get; private set; }
         public SceneManager SceneManager { get; private set; }
@@ -20,8 +21,8 @@ namespace OOP_Project
             Content.RootDirectory = "Content";
             IsMouseVisible = true;
             _graphics.IsFullScreen = true;
-            _graphics.PreferredBackBufferHeight = _screenHeight;
-            _graphics.PreferredBackBufferWidth = _screenWidth;
+            _graphics.PreferredBackBufferHeight = ScreenHeight;
+            _graphics.PreferredBackBufferWidth = ScreenWidth;
             _graphics.ApplyChanges();
             Window.Title = "Tower Defense";
         }
@@ -29,7 +30,7 @@ namespace OOP_Project
         protected override void Initialize()
         {
             SceneManager = new SceneManager();
-            SceneManager.PushScene(new GamePlayScene(this));
+            SceneManager.PushScene(new MenuScene(this));
             
             base.Initialize();
         }
@@ -105,7 +106,7 @@ namespace OOP_Project
 
         public void Draw(GameTime gameTime, SpriteBatch spriteBatch)
         {
-            foreach (var scene in _stack)
+            foreach (var scene in _stack.Reverse())
             {
                 scene.Draw(gameTime, spriteBatch);
             }
