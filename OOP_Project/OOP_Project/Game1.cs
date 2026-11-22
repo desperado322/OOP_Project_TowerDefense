@@ -62,17 +62,12 @@ namespace OOP_Project
 
             base.Draw(gameTime);
         }
-
-        private void GameOver()
-        {
-            Exit();
-        }
-        
     }
 
     public class SceneManager
     {
         private Stack<Scene> _stack = new Stack<Scene>();
+        private bool _isSceneJustOpen;
         public Scene _currentScene => _stack.Count > 0 ? _stack.Peek() : null;
 
         public void PushScene(Scene scene)
@@ -80,6 +75,7 @@ namespace OOP_Project
             _stack.Push(scene);
             scene.Initialize();
             scene.LoadContent();
+            _isSceneJustOpen = true;
         }
 
         public void PopScene(Scene scene)
@@ -102,6 +98,11 @@ namespace OOP_Project
 
         public void Update(GameTime gameTime)
         {
+            if (_isSceneJustOpen)
+            {
+                _isSceneJustOpen = false;
+                return;
+            }
             _stack.Peek().Update(gameTime);
         }
 
@@ -111,24 +112,6 @@ namespace OOP_Project
             {
                 scene.Draw(gameTime, spriteBatch);
             }
-        }
-    }
-
-    public class MouseClick
-    {
-        private MouseState _previousState;
-        public bool IsClick { get; private set; } = false;
-
-        public MouseClick()
-        {
-            _previousState = Mouse.GetState();
-        }
-
-        public void Update(GameTime gameTime)
-        {
-            MouseState currentState = Mouse.GetState();
-            IsClick = currentState.LeftButton == ButtonState.Pressed && _previousState.LeftButton == ButtonState.Released;
-            _previousState = currentState;
         }
     }
 

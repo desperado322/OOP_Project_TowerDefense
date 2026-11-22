@@ -1,24 +1,22 @@
 ﻿using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using OOP_Project.Scenes;
 using System;
 using System.Collections.Generic;
 using Microsoft.Xna.Framework.Input;
+using MonoGame.Extended.Input;
 
 namespace OOP_Project.Entities
 {
     public class TowerPlace : Entity
     {
         private Rectangle _mousePosition;
-        private MouseClick _mouseClick;
         private List<TowerMenuElement> _menuElements = new List<TowerMenuElement>();
         public event Action<TowerPlace, Texture2D> CreateTower;
-        public TowerPlace(Vector2 position, Texture2D texture, List<Texture2D> towerTextures)
+        public TowerPlace(Vector2 position, Texture2D texture, List<Texture2D> towerTextures, Dictionary<Texture2D, TowerStats> towerConfigs)
         {
             SetStats(position, texture);
-            _mouseClick = new MouseClick();
 
-            InitializeMenu(towerTextures);
+            InitializeMenu(towerTextures, towerConfigs);
 
             foreach (var element in _menuElements)
             {
@@ -33,7 +31,11 @@ namespace OOP_Project.Entities
             if (IsActive)
             {
                 _mousePosition = new Rectangle(Mouse.GetState().X, Mouse.GetState().Y, 2, 2);
-                if (_mouseClick.IsClick)
+                foreach (var element in _menuElements)
+                {
+                    element.Update(gameTime, this);
+                }
+                if (MouseExtended.GetState().WasButtonPressed(MouseButton.Left))
                 {
                     if (_mousePosition.Intersects(Bounds))
                     {
@@ -47,32 +49,27 @@ namespace OOP_Project.Entities
                         CloseMenu();
                     }
                 }
-                foreach (var element in _menuElements)
-                {
-                    element.Update(gameTime, this);
-                }
-                _mouseClick.Update(gameTime);
             }
         }
 
-        public void Draw(SpriteBatch spriteBatch)
+        public void Draw(SpriteBatch spriteBatch, SpriteFont font)
         {
             if (IsActive)
             {
                 spriteBatch.Draw(Texture, Position, null, Color.White, 0f, Pivot, Scale, SpriteEffects.None, 0f);
                 foreach (var element in _menuElements)
                 {
-                    element.Draw(spriteBatch);
+                    element.Draw(spriteBatch, font);
                 }
             }
         }
 
-        private void InitializeMenu(List<Texture2D> towerTextures)
+        private void InitializeMenu(List<Texture2D> towerTextures, Dictionary<Texture2D, TowerStats> towerConfigs)
         {
-            _menuElements.Add(new TowerMenuElement(Position - new Vector2(125, 0) * Scale, Pivot, towerTextures[0], Scale, ElementType.Sell));
-            _menuElements.Add(new TowerMenuElement(Position - new Vector2(-125, 0) * Scale, Pivot, towerTextures[1], Scale, ElementType.Upgrade));
-            _menuElements.Add(new TowerMenuElement(Position - new Vector2(0, 125) * Scale, Pivot, towerTextures[2], Scale, ElementType.Repair));
-            _menuElements.Add(new TowerMenuElement(Position - new Vector2(0, -125) * Scale, Pivot, towerTextures[3], Scale, ElementType.Strategy));
+            _menuElements.Add(new TowerMenuElement(Position - new Vector2(100, 0) * Scale, Pivot, towerTextures[0], Scale, ElementType.BasicTower, null, towerConfigs[towerTextures[0]].Cost));
+            _menuElements.Add(new TowerMenuElement(Position - new Vector2(-100, 0) * Scale, Pivot, towerTextures[1], Scale, ElementType.CannonTower, null, towerConfigs[towerTextures[1]].Cost));
+            _menuElements.Add(new TowerMenuElement(Position - new Vector2(0, 100) * Scale, Pivot, towerTextures[2], Scale, ElementType.MachineGunTower, null, towerConfigs[towerTextures[2]].Cost));
+            _menuElements.Add(new TowerMenuElement(Position - new Vector2(0, -100) * Scale, Pivot, towerTextures[3], Scale, ElementType.ManyTargetsTower, null, towerConfigs[towerTextures[3]].Cost));
         }
 
         private void SetStats(Vector2 position, Texture2D texture)

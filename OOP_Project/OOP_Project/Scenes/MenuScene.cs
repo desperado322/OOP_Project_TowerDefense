@@ -2,6 +2,7 @@
 using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
+using MonoGame.Extended.Input;
 using SharpDX.Direct2D1.Effects;
 using System;
 using System.Collections.Generic;
@@ -12,14 +13,12 @@ namespace OOP_Project.Scenes
     {
         private List<LevelButton> _levelButtons;
         private Texture2D _pixel;
-        private MouseClick _mouseClick;
         private Rectangle _startButton;
         private Vector2 _pivot;
         private string _startButtonText = "Старт";
         private SpriteFont _fontUI;
         public MenuScene(Game1 game) : base(game) 
         { 
-            _mouseClick = new MouseClick();
             _startButton = new Rectangle((int)(_game.ScreenWidth / 2 - 100), (int)(_game.ScreenHeight / 2 - 100), 100, 50);
         }
 
@@ -44,9 +43,9 @@ namespace OOP_Project.Scenes
             if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed || Keyboard.GetState().IsKeyDown(Keys.Escape))
                 _game.Exit();
 
-            _mouseClick.Update(gameTime);
+            MouseExtended.Update();
             Rectangle mousePosition = new Rectangle(Mouse.GetState().X, Mouse.GetState().Y, 2, 2);
-            if (_mouseClick.IsClick && _startButton.Contains(mousePosition))
+            if (MouseExtended.GetState().WasButtonPressed(MouseButton.Left) && _startButton.Contains(mousePosition))
             {
                 _game.SceneManager.ChangeScene(new GamePlayScene(_game, _game.LevelSettings.GetTowerPositions(), _game.LevelSettings.GetSplinePoints(), _game.LevelSettings.GetRoadType()));
             }
@@ -105,7 +104,6 @@ namespace OOP_Project.Scenes
 
     public class LevelButton
     {
-        private MouseClick _mouseClick;
         private Vector2 _position;
         private LevelType _type;
         private Rectangle _bounds;
@@ -121,15 +119,13 @@ namespace OOP_Project.Scenes
             _type = type;
             _font = font;
             _bounds = new Rectangle((int)(_position.X), (int)(_position.Y), 100, 50);
-            _mouseClick = new MouseClick();
         }
 
         public void Update(GameTime gameTime)
         {
-            _mouseClick.Update(gameTime);
             Rectangle mousePosition = new Rectangle(Mouse.GetState().X, Mouse.GetState().Y, 2, 2);
 
-            if (_mouseClick.IsClick)
+            if (MouseExtended.GetState().WasButtonPressed(MouseButton.Left))
             {
                 if (_bounds.Contains(mousePosition))
                 {

@@ -15,6 +15,7 @@ namespace OOP_Project.Entities
         protected float _traveledDistance = 0f;
         protected ArcLengthParametrization _arcLengthParametrization;
         protected float _health;
+        public EnemyStats Stats { get; private set; }
         public List<Vector2> Points;
 
         public Enemy(EnemyStats stats, float randomPath, List<Vector2> splinePoints, Texture2DAtlas atlas = null)
@@ -60,6 +61,7 @@ namespace OOP_Project.Entities
 
         protected void SetStats(EnemyStats stats, float randomPath)
         {
+            Stats = stats;
             _speed = stats.Speed;
             _health = stats.Health;
             IsActive = true;
@@ -143,13 +145,15 @@ namespace OOP_Project.Entities
         public float Health { get; private set; }
         public float Speed { get; private set; }
         public EnemyType Type { get; private set; }
+        public float Bounty { get; private set; }
 
-        public EnemyStats(Texture2D texture, float health, float speed, EnemyType type)
+        public EnemyStats(Texture2D texture, float health, float speed, EnemyType type, float bounty)
         {
             Texture = texture;
             Health = health;
             Speed = speed;
             Type = type;
+            Bounty = bounty;
         }
     }
 

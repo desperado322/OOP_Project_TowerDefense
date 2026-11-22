@@ -2,18 +2,13 @@
 using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using MonoGame.Extended.Input;
 
 namespace OOP_Project.Scenes
 {
     public class PauseScene : Scene
     {
         private Texture2D _pixel;
-        private MouseClick _mouseClick;
         private SpriteFont _fontUI;
         private Rectangle _menuButton;
         private Rectangle _screenBounds;
@@ -29,7 +24,6 @@ namespace OOP_Project.Scenes
         public override void Initialize()
         {
             _contentManager = new ContentManager(_game.Services, "Content");
-            _mouseClick = new MouseClick();
         }
 
         public override void LoadContent()
@@ -42,9 +36,16 @@ namespace OOP_Project.Scenes
 
         public override void Update(GameTime gameTime)
         {
-            _mouseClick.Update(gameTime);
+            KeyboardExtended.Update();
+            MouseExtended.Update();
+            if (KeyboardExtended.GetState().WasKeyPressed(Keys.Escape))
+            {
+                _game.SceneManager.PopScene(this);
+                return;
+            }
+           
             Rectangle mousePosition = new Rectangle(Mouse.GetState().X, Mouse.GetState().Y, 2, 2);
-            if (_mouseClick.IsClick && _menuButton.Contains(mousePosition))
+            if (MouseExtended.GetState().WasButtonPressed(MouseButton.Left) && _menuButton.Contains(mousePosition))
             {
                 _game.SceneManager.ChangeScene(new MenuScene(_game));
             }

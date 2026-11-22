@@ -5,30 +5,34 @@ using System;
 using System.Collections.Generic;
 using Microsoft.Xna.Framework.Input;
 using OOP_Project.Strategies;
+using MonoGame.Extended.Input;
 
 namespace OOP_Project.Entities
 {
     public abstract class Tower : Entity
     {
         protected TowerPlace _place;
-        protected MouseClick _mouseClick;
         protected BulletPool _bullets;
         protected IStrategy _strategy;
         protected List<IStrategy> _strategies;
         protected List<TowerMenuElement> _menuElements = new List<TowerMenuElement>();
         protected SpriteFont _font;
-        protected float _maxHealth;
         protected float _rangeShooting;
         protected float _attackCooldown;
         protected float _fireRate;
         protected float _bulletDamage;
         protected float _bulletSpeed;
-        protected float _health;
+        protected float _currentBalance;
         protected int _countOfUpgrades = 0;
         protected Enemy _currentTarget;
         protected bool _statsActive = false;
+        public float MaxHealth {  get; protected set; }
+        public float CurrentHealth { get; protected set; }
         public TowerStats Stats { get; private set; }
         public event Action<Tower, TowerPlace> SellTower;
+        public event Action<Tower> UpgradeTower;
+        public event Action<Tower> RepairTower;
+
         public Tower(Vector2 position, TowerStats stats, TowerPlace towerPlace, List<Texture2D> menuElementsTextures, List<IStrategy> strategies)
         {
             Position = position;
@@ -37,7 +41,6 @@ namespace OOP_Project.Entities
             _strategy = _strategies[0];
             SetStats(stats);
             _bullets = new BulletPool(Stats.BulletTexture, this, _bulletSpeed);
-            _mouseClick = new MouseClick();
 
             InitializeMenu(menuElementsTextures);
 
@@ -48,8 +51,9 @@ namespace OOP_Project.Entities
         }
 
 
-        public virtual void Update(GameTime gameTime, List<Enemy> enemies)
+        public virtual void Update(GameTime gameTime, List<Enemy> enemies, float balance)
         {
+            _currentBalance = balance;
             if (IsActive)
             {
                 foreach (var element in _menuElements)
@@ -59,7 +63,7 @@ namespace OOP_Project.Entities
                 _bullets.Update(gameTime);
                 FireAtCurrentTarget(gameTime, enemies);
                 Rectangle mousePosition = new Rectangle(Mouse.GetState().X, Mouse.GetState().Y, 2, 2);
-                if (_mouseClick.IsClick)
+                if (MouseExtended.GetState().WasButtonPressed(MouseButton.Left))
                 {
                     if (mousePosition.Intersects(Bounds))
                     {
@@ -74,7 +78,6 @@ namespace OOP_Project.Entities
                         CloseMenu();
                     }
                 }
-                _mouseClick.Update(gameTime);
             }
         }
 
@@ -87,38 +90,38 @@ namespace OOP_Project.Entities
             }
         }
 
-        public virtual void DrawUI(SpriteBatch spriteBatch, Texture2D pixel)
+        public virtual void DrawUI(SpriteBatch spriteBatch, Texture2D pixel, SpriteFont font)
         {
             if (IsActive)
             {
                 foreach (var element in _menuElements)
                 {
-                    element.Draw(spriteBatch);
+                    element.Draw(spriteBatch, font);
                 }
                 if (_statsActive)
                 {
                     spriteBatch.DrawString(_font, $"Дальность {_rangeShooting} \n" +
                         $"Урон: {_bulletDamage} \n" +
                         $"Перезарядка: {_attackCooldown} \n" +
-                        $"Здоровье: {_health} \n" +
-                        $"Максимальное здоровье: {_maxHealth} \n" +
+                        $"Здоровье: {CurrentHealth} \n" +
+                        $"Максимальное здоровье: {MaxHealth} \n" +
                         $"Скорость пули: {_bulletSpeed} \n" +
                         $"Количество улучшений: {_countOfUpgrades} (max 5) \n" +
                         $"Текущий тип атаки: {_strategy.Name}", Position + new Vector2(150, -50) * Scale, Color.White);
                 }
-                if (_health < _maxHealth)
+                if (CurrentHealth < MaxHealth)
                 {
-                    spriteBatch.Draw(pixel, new Rectangle((int)(Position.X - _maxHealth / 4), (int)Position.Y + 25, (int)(_maxHealth / 2), 10), Color.Black);
-                    spriteBatch.Draw(pixel, new Rectangle((int)(Position.X - _maxHealth / 4), (int)Position.Y + 25, (int)(_health / 2), 10), Color.LightGreen);
+                    spriteBatch.Draw(pixel, new Rectangle((int)(Position.X - MaxHealth / 4), (int)Position.Y + 25, (int)(MaxHealth / 2), 10), Color.Black);
+                    spriteBatch.Draw(pixel, new Rectangle((int)(Position.X - MaxHealth / 4), (int)Position.Y + 25, (int)(CurrentHealth / 2), 10), Color.LightGreen);
                 }
             }
         }
         protected void InitializeMenu(List<Texture2D> menuElementsTextures)
         {
-            _menuElements.Add(new TowerMenuElement(Position - new Vector2(125, 0) * Scale, Pivot, menuElementsTextures[0], Scale, ElementType.Sell));
-            _menuElements.Add(new TowerMenuElement(Position - new Vector2(-125, 0) * Scale, Pivot, menuElementsTextures[1], Scale, ElementType.Upgrade));
-            _menuElements.Add(new TowerMenuElement(Position - new Vector2(0, 125) * Scale, Pivot, menuElementsTextures[2], Scale, ElementType.Repair));
-            _menuElements.Add(new TowerMenuElement(Position - new Vector2(0, -125) * Scale, Pivot, menuElementsTextures[3], Scale, ElementType.Strategy));
+            _menuElements.Add(new TowerMenuElement(Position - new Vector2(100, 0) * Scale, Pivot, menuElementsTextures[0], Scale, ElementType.Sell, this));
+            _menuElements.Add(new TowerMenuElement(Position - new Vector2(-100, 0) * Scale, Pivot, menuElementsTextures[1], Scale, ElementType.Upgrade, this));
+            _menuElements.Add(new TowerMenuElement(Position - new Vector2(0, 100) * Scale, Pivot, menuElementsTextures[2], Scale, ElementType.Repair, this));
+            _menuElements.Add(new TowerMenuElement(Position - new Vector2(0, -100) * Scale, Pivot, menuElementsTextures[3], Scale, ElementType.Strategy));
         }
         protected void SetStats(TowerStats stats)
         {
@@ -130,8 +133,8 @@ namespace OOP_Project.Entities
             _attackCooldown = _fireRate;
             _font = Stats.Font;
             Texture = Stats.Texture;
-            _maxHealth = Stats.MaxHealth;
-            _health = _maxHealth;
+            MaxHealth = Stats.MaxHealth;
+            CurrentHealth = MaxHealth;
             Scale = 0.5f;
             IsActive = true;
             Pivot = new Vector2(Texture.Width / 2, Texture.Height / 2);
@@ -149,22 +152,27 @@ namespace OOP_Project.Entities
         }
         protected void OnTowerRepaired()
         {
-            _health = _maxHealth;
-            _statsActive = false;
-            foreach (var element in _menuElements)
+            if (_currentBalance >= (MaxHealth - CurrentHealth)) 
             {
-                element.SetActive(false);
+                RepairTower?.Invoke(this);
+                CurrentHealth = MaxHealth;
+                _statsActive = false;
+                foreach (var element in _menuElements)
+                {
+                    element.SetActive(false);
+                }
             }
         }
 
         protected void OnTowerUpgraded()
         {
-            if (_countOfUpgrades < 5)
+            if (_countOfUpgrades < 5 && _currentBalance >= Stats.Cost / 2f)
             {
+                UpgradeTower?.Invoke(this);
                 _rangeShooting = MathF.Round(_rangeShooting * 1.1f);
                 _attackCooldown = MathF.Round(_attackCooldown / 1.1f, 2);
                 _bulletDamage = MathF.Round(_bulletDamage * 1.1f);
-                _maxHealth += 10f;
+                MaxHealth += 10f;
                 _statsActive = false;
                 foreach (var element in _menuElements)
                 {
@@ -260,8 +268,8 @@ namespace OOP_Project.Entities
 
         public virtual void GetDamage(float damage)
         {
-            _health -= damage;
-            if (_health <= 0)
+            CurrentHealth -= damage;
+            if (CurrentHealth <= 0)
             {
                 IsActive = false;
                 _place.SetActive(true);
@@ -389,8 +397,9 @@ namespace OOP_Project.Entities
         public float BulletDamage { get; private set; }
         public float BulletSpeed { get; private set; }
         public float MaxHealth { get; private set; }
+        public float Cost { get; private set; }
 
-        public TowerStats(Texture2D texture, float range, float fireRate, Texture2D bulletTexture, float bulletDamage, float bulletSpeed, SpriteFont font, TowerType type, float maxHealth)
+        public TowerStats(Texture2D texture, float range, float fireRate, Texture2D bulletTexture, float bulletDamage, float bulletSpeed, SpriteFont font, TowerType type, float maxHealth, float cost)
         {
             Type = type;
             Texture = texture;
@@ -401,6 +410,7 @@ namespace OOP_Project.Entities
             BulletSpeed = bulletSpeed;
             Font = font;
             MaxHealth = maxHealth;
+            Cost = cost;
         }
     }
 }

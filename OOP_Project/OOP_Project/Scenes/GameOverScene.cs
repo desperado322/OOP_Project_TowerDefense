@@ -3,6 +3,7 @@ using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using MonoGame.Extended.BitmapFonts;
+using MonoGame.Extended.Input;
 
 
 namespace OOP_Project.Scenes
@@ -13,7 +14,6 @@ namespace OOP_Project.Scenes
         private Rectangle _restartButton;
         private Rectangle _menuButton;
         private Rectangle _screenBounds;
-        private MouseClick _mouseClick;
         private Vector2 _pivot;
         private float _transparency = 0.8f;
         private string _restartButtonText = "Рестарт";
@@ -25,7 +25,6 @@ namespace OOP_Project.Scenes
             _restartButton = new Rectangle((int)(_game.ScreenWidth / 2 - 100), (int)(_game.ScreenHeight / 2 - 100), 100, 50);
             _menuButton = new Rectangle((int)(_game.ScreenWidth / 2 - 100), (int)(_game.ScreenHeight / 2), 100, 50);
             _screenBounds = new Rectangle(0, 0, _game.ScreenWidth, _game.ScreenHeight);
-            _mouseClick = new MouseClick();
         }
 
         public override void Initialize()
@@ -41,13 +40,13 @@ namespace OOP_Project.Scenes
         }
         public override void Update(GameTime gameTime)
         {
-            _mouseClick.Update(gameTime);
+            MouseExtended.Update();
             Rectangle mousePosition = new Rectangle(Mouse.GetState().X, Mouse.GetState().Y, 2, 2);
-            if (_mouseClick.IsClick && _restartButton.Contains(mousePosition))
+            if (MouseExtended.GetState().WasButtonPressed(MouseButton.Left) && _restartButton.Contains(mousePosition))
             {
                 _game.SceneManager.ChangeScene(new GamePlayScene(_game, _game.LevelSettings.GetTowerPositions(), _game.LevelSettings.GetSplinePoints(), _game.LevelSettings.GetRoadType()));
             }
-            else if (_mouseClick.IsClick && _menuButton.Contains(mousePosition))
+            else if (MouseExtended.GetState().WasButtonPressed(MouseButton.Left) && _menuButton.Contains(mousePosition))
             {
                 _game.SceneManager.ChangeScene(new MenuScene(_game));
             }

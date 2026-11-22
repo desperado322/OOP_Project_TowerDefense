@@ -7,6 +7,7 @@ using OOP_Project.Entities;
 using OOP_Project.Strategies;
 using System;
 using System.Collections.Generic;
+using MonoGame.Extended.Input;
 
 
 namespace OOP_Project.Scenes
@@ -22,6 +23,7 @@ namespace OOP_Project.Scenes
         private RoadType _roadType;
         private GameManager _gameManager;
         private WaveManager _waveManager;
+        private EconomyManager _economyManager;
         private GameAssets _gameAssets;
 
         public GamePlayScene(Game1 game, List<Vector2> towerPositions, List<Vector2> splinePoints, RoadType roadType) : base(game)
@@ -44,27 +46,27 @@ namespace OOP_Project.Scenes
         {
             _gameAssets.Load(_contentManager, _graphicsDevice); 
             _font = _contentManager.Load<SpriteFont>("Font1");
-            foreach (var towerPosition in _towerPositions)
-            {
-                _towerPlaces.Add(new TowerPlace(towerPosition, _gameAssets.TowerPlaceTexture, _gameAssets.TowerTextures));
-            }
-            _gameManager = new GameManager(_towerPlaces, _towers, _gameAssets.MenuElementsTextures, 
+            _gameManager = new GameManager(_towerPlaces, _towerPositions, _gameAssets.TowerPlaceTexture, _towers, _gameAssets.MenuElementsTextures, 
                 _gameAssets.TowerTextures, _gameAssets.BulletTextures, _gameAssets.EnemyTextures, 
                 _font, _gameAssets.Atlas, _splinePoints);
+            _economyManager = new EconomyManager(_gameManager);
         }
         public override void Update(GameTime gameTime)
         {
-            if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed || Keyboard.GetState().IsKeyDown(Keys.Escape))
-                _game.SceneManager.PushScene(new PauseScene(_game));
-
-            _waveManager.Update(gameTime, _enemies.Count);
-            _gameManager.Update(gameTime, _enemies, _gameAssets.EnemyTextures, _bullets, _waveManager.IsWaveActive);
-            _enemies.RemoveAll(enemy => enemy.GetActive() == false);
-            for (int i = 0; i < _enemies.Count; i++)
+            KeyboardExtended.Update();
+            MouseExtended.Update();
+            if (KeyboardExtended.GetState().WasKeyPressed(Keys.Escape))
             {
-
-                _enemies[i].Update(gameTime);
-                if (_enemies[i].Position == _enemies[i].Points[^1])
+                _game.SceneManager.PushScene(new PauseScene(_game));
+                return;
+            }
+                
+            _waveManager.Update(gameTime, _enemies.Count);
+            _gameManager.Update(gameTime, _enemies, _gameAssets.EnemyTextures, _bullets, _waveManager.IsWaveActive, _economyManager.GetBalance());
+            foreach (var enemy in _enemies)
+            {
+                enemy.Update(gameTime);
+                if (enemy.Position == enemy.Points[^1])
                 {
                     _game.SceneManager.PushScene(new GameOverScene(_game, "Игра окончена"));
                     return;
@@ -75,7 +77,7 @@ namespace OOP_Project.Scenes
             {
                 if (tower.IsActive)
                 {
-                    tower.Update(gameTime, _enemies);
+                    tower.Update(gameTime, _enemies, _economyManager.GetBalance());
                 }
 
             }
@@ -93,6 +95,7 @@ namespace OOP_Project.Scenes
         {
             spriteBatch.Draw(_gameAssets.RoadTextures[_roadType], Vector2.Zero, Color.Brown);
             _waveManager.Draw(spriteBatch, _gameAssets.FontUI);
+            _economyManager.Draw(spriteBatch, _gameAssets.FontUI);
 
             foreach (var enemy in _enemies)
             {
@@ -104,7 +107,7 @@ namespace OOP_Project.Scenes
             }
             foreach (var towerPlace in _towerPlaces)
             {
-                towerPlace.Draw(spriteBatch);
+                towerPlace.Draw(spriteBatch, _font);
             }
             foreach (var tower in _towers)
             {
@@ -112,7 +115,7 @@ namespace OOP_Project.Scenes
             }
             foreach (var tower in _towers)
             {
-                tower.DrawUI(spriteBatch, _gameAssets.Pixel);
+                tower.DrawUI(spriteBatch, _gameAssets.Pixel, _font);
             }
         }
         private void OnLevelWon()
@@ -300,7 +303,6 @@ namespace OOP_Project.Scenes
 
     public class GameManager
     {
-        private Dictionary<Texture2D, TowerStats> _towerConfigs = new Dictionary<Texture2D, TowerStats>();
         private Dictionary<Texture2D, EnemyStats> _enemyConfigs = new Dictionary<Texture2D, EnemyStats>();
         private Dictionary<TowerType, Func<TowerPlace, TowerStats, Tower>> _towerConfigsFactory;
         private Dictionary<EnemyType, Func<EnemyStats, Enemy>> _enemyConfigsFactory;
@@ -310,12 +312,18 @@ namespace OOP_Project.Scenes
         private List<IStrategy> _strategies = new List<IStrategy>() { new ClosestAttackStrategy(), new MaxHPAttackStrategy(), new FirstAttackStrategy(), new AllInRangeAttackStrategy() };
         private List<Texture2D> _menuElementsTextures;
         private float _timer = 0f;
+        private float _currentBalance = 0f;
         private Random _randomizedEnemy;
+        public Dictionary<Texture2D, TowerStats> TowerConfigs { get; private set; } = new Dictionary<Texture2D, TowerStats>();
+        public event Action<float> KillEnemy;
+        public event Action<float> BuyTower;
+        public event Action<float> RepairTower;
+        public event Action<float> UpgradeTower;
+        public event Action<float> SellTower;
 
-        public GameManager(List<TowerPlace> places, List<Tower> towers, List<Texture2D> menuElementsTextures, List<Texture2D> towerTextures, List<Texture2D> bulletTextures, List<Texture2D> enemyTextures, SpriteFont font, Texture2DAtlas atlas, List<Vector2> splinePoints)
+        public GameManager(List<TowerPlace> places, List<Vector2> towerPositions, Texture2D placeTexture, List<Tower> towers, List<Texture2D> menuElementsTextures, List<Texture2D> towerTextures, List<Texture2D> bulletTextures, List<Texture2D> enemyTextures, SpriteFont font, Texture2DAtlas atlas, List<Vector2> splinePoints)
         {
             _randomizedEnemy = new Random();
-            _places = places;
             _towers = towers;
             _menuElementsTextures = menuElementsTextures;
             _atlas = atlas;
@@ -323,40 +331,73 @@ namespace OOP_Project.Scenes
             CreateTowerFactories();
             CreateEnemyConfigs(enemyTextures);
             CreateEnemyFactories(splinePoints);
-            foreach (var place in _places)
+            InitializeTowerPlaces(places, towerPositions, placeTexture, towerTextures);
+        }
+
+        public void InitializeTowerPlaces(List<TowerPlace> places, List<Vector2> towerPositions, Texture2D placeTexture, List<Texture2D> towerTextures)
+        {
+            foreach (var towerPosition in towerPositions)
+            {
+                places.Add(new TowerPlace(towerPosition, placeTexture, towerTextures, TowerConfigs));
+            }
+            _places = places;
+            foreach (var place in  _places)
             {
                 place.CreateTower += OnTowerCreated;
             }
         }
 
-
-        public void Update(GameTime gameTime, List<Enemy> enemies, List<Texture2D> enemyTextures, List<Bullet> bullets, bool isWaveActive)
+        public void Update(GameTime gameTime, List<Enemy> enemies, List<Texture2D> enemyTextures, List<Bullet> bullets, bool isWaveActive, float balance)
         {
+            _currentBalance = balance;
+            for (int i = enemies.Count - 1; i >= 0; i--)
+            {
+                if (!enemies[i].IsActive)
+                {
+                    KillEnemy?.Invoke(enemies[i].Stats.Bounty);
+                    enemies.RemoveAt(i);
+                }
+            }
+            
             if (isWaveActive)
             {
                 CreateEnemies(gameTime, enemies, enemyTextures);
             }
         }
 
-        private void OnTowerSelled(Tower tower, TowerPlace place)
-        {
-            tower.SetActive(false);
-            place.SetActive(true);
-        }
         private void OnTowerCreated(TowerPlace towerPlace, Texture2D towerTexture)
         {
-            if (!_towerConfigs.TryGetValue(towerTexture, out TowerStats stats))
+            if (!TowerConfigs.TryGetValue(towerTexture, out TowerStats stats))
             {
                 return;
             }
-            if (_towerConfigsFactory.TryGetValue(stats.Type, out var factory))
+            if (_towerConfigsFactory.TryGetValue(stats.Type, out var factory) && _currentBalance >= stats.Cost)
             {
                 Tower tower = factory(towerPlace, stats);
                 tower.SellTower += OnTowerSelled;
+                tower.RepairTower += OnTowerRepaired;
+                tower.UpgradeTower += OnTowerUpgraded;
                 _towers.Add(tower);
                 towerPlace.SetActive(false);
+                BuyTower?.Invoke(stats.Cost);
             }
 
+        }
+        private void OnTowerSelled(Tower tower, TowerPlace place)
+        {
+            SellTower?.Invoke(tower.Stats.Cost / 2);
+            tower.SetActive(false);
+            place.SetActive(true);
+        }
+
+        private void OnTowerUpgraded(Tower tower)
+        {
+            UpgradeTower?.Invoke(tower.Stats.Cost / 2);
+        }
+
+        private void OnTowerRepaired(Tower tower)
+        {
+            RepairTower?.Invoke(tower.MaxHealth - tower.CurrentHealth);
         }
 
         private void CreateEnemies(GameTime gameTime, List<Enemy> enemies, List<Texture2D> enemyTextures)
@@ -379,10 +420,10 @@ namespace OOP_Project.Scenes
         }
         private void CreateTowerConfigs(List<Texture2D> towerTextures, List<Texture2D> bulletTextures, SpriteFont font)
         {
-            _towerConfigs.Add(towerTextures[0], new TowerStats(towerTextures[0], 400f, 2f, bulletTextures[0], 10f, 750f, font, TowerType.Basic, 150f));
-            _towerConfigs.Add(towerTextures[1], new TowerStats(towerTextures[1], 400f, 5f, bulletTextures[1], 50f, 500f, font, TowerType.Cannon, 100f));
-            _towerConfigs.Add(towerTextures[2], new TowerStats(towerTextures[2], 500f, 2f, bulletTextures[0], 10f, 750f, font, TowerType.MachineGun, 120f));
-            _towerConfigs.Add(towerTextures[3], new TowerStats(towerTextures[3], 600f, 3f, bulletTextures[0], 10f, 600f, font, TowerType.ManyTargets, 200f));
+            TowerConfigs.Add(towerTextures[0], new TowerStats(towerTextures[0], 400f, 2f, bulletTextures[0], 20f, 750f, font, TowerType.Basic, 150f, 50));
+            TowerConfigs.Add(towerTextures[1], new TowerStats(towerTextures[1], 400f, 5f, bulletTextures[1], 50f, 500f, font, TowerType.Cannon, 100f, 150));
+            TowerConfigs.Add(towerTextures[2], new TowerStats(towerTextures[2], 500f, 2f, bulletTextures[0], 15f, 750f, font, TowerType.MachineGun, 120f, 200));
+            TowerConfigs.Add(towerTextures[3], new TowerStats(towerTextures[3], 600f, 3f, bulletTextures[0], 10f, 600f, font, TowerType.ManyTargets, 200f, 300));
         }
 
         private void CreateTowerFactories()
@@ -396,10 +437,10 @@ namespace OOP_Project.Scenes
 
         private void CreateEnemyConfigs(List<Texture2D> enemyTextures)
         {
-            _enemyConfigs.Add(enemyTextures[0], new EnemyStats(enemyTextures[0], 100f, 100f, EnemyType.Standart));
-            _enemyConfigs.Add(enemyTextures[1], new EnemyStats(enemyTextures[1], 50f, 150f, EnemyType.Fast));
-            _enemyConfigs.Add(enemyTextures[2], new EnemyStats(enemyTextures[2], 200f, 50f, EnemyType.Resist));
-            _enemyConfigs.Add(enemyTextures[3], new EnemyStats(enemyTextures[3], 80f, 100f, EnemyType.Spike));
+            _enemyConfigs.Add(enemyTextures[0], new EnemyStats(enemyTextures[0], 100f, 100f, EnemyType.Standart, 20));
+            _enemyConfigs.Add(enemyTextures[1], new EnemyStats(enemyTextures[1], 50f, 150f, EnemyType.Fast, 30));
+            _enemyConfigs.Add(enemyTextures[2], new EnemyStats(enemyTextures[2], 200f, 50f, EnemyType.Resist, 50));
+            _enemyConfigs.Add(enemyTextures[3], new EnemyStats(enemyTextures[3], 80f, 100f, EnemyType.Spike, 40));
         }
 
         private void CreateEnemyFactories(List<Vector2> splinePoints)
@@ -420,7 +461,8 @@ namespace OOP_Project.Scenes
             foreach (var tower in _towers)
             {
                 tower.SellTower -= OnTowerSelled;
-                
+                tower.UpgradeTower -= OnTowerUpgraded;
+                tower.RepairTower -= OnTowerRepaired;
             }
         }
     }
@@ -460,6 +502,7 @@ namespace OOP_Project.Scenes
                 {
                     _timer = 0f;
                     _countOfWaves += 1f;
+                    _timeToEndWave *= 2;
                 }
                 IsWaveActive = false;
             }
@@ -484,4 +527,51 @@ namespace OOP_Project.Scenes
         }
     }
 
+    public class EconomyManager
+    {
+        private float _balance = 150f;
+        public EconomyManager(GameManager gameManager)
+        {
+            gameManager.KillEnemy += OnEnemyKilled;
+            gameManager.BuyTower += OnTowerBought;
+            gameManager.RepairTower += OnTowerRepaired;
+            gameManager.UpgradeTower += OnTowerUpgraded;
+            gameManager.SellTower += OnTowerSelled;
+        }
+
+        private void OnTowerSelled(float cost)
+        {
+            _balance += cost;
+        }
+
+        private void OnTowerUpgraded(float cost)
+        {
+            _balance -= cost;
+        }
+
+        private void OnTowerRepaired(float cost)
+        {
+            _balance -= cost;
+        }
+
+        private void OnTowerBought(float cost)
+        {
+            _balance -= cost;
+        }
+
+        private void OnEnemyKilled(float bounty)
+        {
+            _balance += bounty;
+        }
+
+        public void Draw(SpriteBatch spriteBatch, SpriteFont font)
+        {
+            spriteBatch.DrawString(font, _balance.ToString(), new Vector2(1800, 100), Color.Coral);
+        }
+
+        public float GetBalance() 
+        { 
+            return _balance; 
+        }
+    }
 }
