@@ -71,4 +71,16 @@ namespace OOP_Project.Entities
             Texture = texture;
         }
     }
+
+    public enum ElementType
+    {
+        BasicTower,
+        CannonTower,
+        MachineGunTower,
+        ManyTargetsTower,
+        Sell,
+        Upgrade,
+        Repair,
+        Strategy
+    }
 }

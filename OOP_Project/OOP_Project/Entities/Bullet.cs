@@ -2,7 +2,6 @@
 using Microsoft.Xna.Framework.Graphics;
 using OOP_Project.Scenes;
 using System;
-using Microsoft.Xna.Framework.Input;
 
 namespace OOP_Project.Entities
 {

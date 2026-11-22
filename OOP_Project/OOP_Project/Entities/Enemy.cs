@@ -15,11 +15,20 @@ namespace OOP_Project.Entities
         protected float _traveledDistance = 0f;
         protected ArcLengthParametrization _arcLengthParametrization;
         protected float _health;
-        public List<Vector2> Points { get; private set; }
+        public List<Vector2> Points;
 
-        public Enemy(EnemyStats stats, float randomPath, Texture2DAtlas atlas = null)
+        public Enemy(EnemyStats stats, float randomPath, List<Vector2> splinePoints, Texture2DAtlas atlas = null)
         {
             SetStats(stats, randomPath);
+            Points = new List<Vector2>();
+            Points.AddRange(splinePoints);
+            for (int i = 0;  i < Points.Count; i++)
+            {
+                var point = Points[i];
+                point.X += randomPath;
+                point.Y += randomPath;
+                Points[i] = point;
+            }
             _atlas = atlas;
             _arcLengthParametrization = new ArcLengthParametrization(Points);
             if (_atlas != null)
@@ -57,10 +66,6 @@ namespace OOP_Project.Entities
             Scale = 1f;
             Texture = stats.Texture;
             Pivot = new Vector2(Texture.Width / 2, Texture.Height / 2);
-            Points = new List<Vector2>() { new (100 + randomPath, 0), new (100 + randomPath, 0), new (100 + randomPath, 900 + randomPath),
-                new (100 + randomPath, 900 + randomPath), new (400 + randomPath, 900 + randomPath), new (400 + randomPath, 900 + randomPath),
-                new (400 + randomPath, 200 + randomPath),  new (400 + randomPath, 200 + randomPath), new (900 + randomPath, 200 + randomPath),
-                new (900 + randomPath, 200 + randomPath), new (900 + randomPath, 900 + randomPath), new (900 + randomPath, 900 + randomPath) };
         }
         public virtual void TakeDamage(float damage)
         {
@@ -121,6 +126,64 @@ namespace OOP_Project.Entities
         public float GetHealth()
         {
             return _health;
+        }
+    }
+
+    public enum EnemyType
+    {
+        Standart,
+        Fast,
+        Resist,
+        Spike
+    }
+
+    public class EnemyStats
+    {
+        public Texture2D Texture { get; private set; }
+        public float Health { get; private set; }
+        public float Speed { get; private set; }
+        public EnemyType Type { get; private set; }
+
+        public EnemyStats(Texture2D texture, float health, float speed, EnemyType type)
+        {
+            Texture = texture;
+            Health = health;
+            Speed = speed;
+            Type = type;
+        }
+    }
+
+    public class StandartEnemy : Enemy
+    {
+        public StandartEnemy(EnemyStats stats, float randomPath, List<Vector2> splinePoints, Texture2DAtlas atlas) : base(stats, randomPath, splinePoints, atlas) { }
+    }
+
+    public class FastEnemy : Enemy
+    {
+        public FastEnemy(EnemyStats stats, float randomPath, List<Vector2> splinePoints) : base(stats, randomPath, splinePoints) { }
+    }
+
+    public class ResistEnemy : Enemy
+    {
+        public ResistEnemy(EnemyStats stats, float randomPath, List<Vector2> splinePoints) : base(stats, randomPath, splinePoints) { }
+        public override void TakeDamage(float damage)
+        {
+            _health -= damage * 0.75f;
+            if (_health <= 0f)
+            {
+                IsActive = false;
+            }
+        }
+    }
+
+    public class SpikeEnemy : Enemy
+    {
+        private float _spikeDamage = 10f;
+        public SpikeEnemy(EnemyStats stats, float randomPath, List<Vector2> splinePoints) : base(stats, randomPath, splinePoints) { }
+
+        public float TakeSpikeDamage()
+        {
+            return _spikeDamage;
         }
     }
 }

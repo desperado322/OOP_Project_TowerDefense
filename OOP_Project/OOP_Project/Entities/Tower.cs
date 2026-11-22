@@ -4,6 +4,7 @@ using OOP_Project.Scenes;
 using System;
 using System.Collections.Generic;
 using Microsoft.Xna.Framework.Input;
+using OOP_Project.Strategies;
 
 namespace OOP_Project.Entities
 {
@@ -265,6 +266,141 @@ namespace OOP_Project.Entities
                 IsActive = false;
                 _place.SetActive(true);
             }
+        }
+    }
+
+    public enum TowerType
+    {
+        Basic,
+        Cannon,
+        MachineGun,
+        ManyTargets
+    }
+
+    public class BasicTower : Tower
+    {
+        public BasicTower(Vector2 position, TowerStats stats, TowerPlace towerPlace, List<Texture2D> menuElementsTextures, List<IStrategy> strategies)
+            : base(position, stats, towerPlace, menuElementsTextures, strategies) { }
+    }
+
+    public class CannonTower : Tower
+    {
+        public CannonTower(Vector2 position, TowerStats stats, TowerPlace towerPlace, List<Texture2D> menuElementsTextures, List<IStrategy> strategies)
+            : base(position, stats, towerPlace, menuElementsTextures, strategies) { }
+
+        public override void GetDamage(float damage)
+        {
+            damage *= 3;
+            base.GetDamage(damage);
+        }
+    }
+
+    public class MachineGunTower : Tower
+    {
+        public MachineGunTower(Vector2 position, TowerStats stats, TowerPlace towerPlace, List<Texture2D> menuElementsTextures, List<IStrategy> strategies)
+            : base(position, stats, towerPlace, menuElementsTextures, strategies)
+        {
+            _attackCooldown = _fireRate;
+        }
+
+        protected override void FireAtCurrentTarget(GameTime gameTime, List<Enemy> enemies)
+        {
+            if (_currentTarget != null)
+            {
+                if (!_currentTarget.GetActive())
+                {
+                    _currentTarget = null;
+                    return;
+                }
+                Aim(_currentTarget);
+                if (_fireRate >= _attackCooldown)
+                {
+                    Shoot(_currentTarget);
+                    _fireRate = 0f;
+                    if (_attackCooldown >= 0.5f)
+                    {
+                        _attackCooldown = MathF.Round(_attackCooldown - 5f * (float)gameTime.ElapsedGameTime.TotalSeconds, 2);
+                    }
+                }
+                CheckCurrentTargetPosition(_currentTarget);
+                _fireRate += (float)gameTime.ElapsedGameTime.TotalSeconds * 2f;
+            }
+            else if (_currentTarget == null)
+            {
+                _currentTarget = _strategy.FindTarget<Enemy>(this, enemies);
+            }
+        }
+    }
+
+    public class ManyTargetsTower : Tower
+    {
+        private List<Enemy> _currentTargets = new List<Enemy>();
+        public ManyTargetsTower(Vector2 position, TowerStats stats, TowerPlace towerPlace, List<Texture2D> menuElementsTextures, List<IStrategy> strategies)
+            : base(position, stats, towerPlace, menuElementsTextures, strategies)
+        {
+            _menuElements[^1].ChangeTexture(menuElementsTextures[4]);
+            _strategy = strategies[^1];
+        }
+
+        protected override void FireAtCurrentTarget(GameTime gameTime, List<Enemy> enemies)
+        {
+            if (_currentTargets.Count > 0)
+            {
+                if (_fireRate >= 1f)
+                {
+                    foreach (var target in _currentTargets)
+                    {
+                        Shoot(target);
+                        CheckCurrentTargetPosition(target);
+                        _fireRate = 0f;
+                    }
+                }
+                _currentTargets.Clear();
+            }
+            else if (_currentTargets.Count == 0)
+            {
+                _currentTargets = _strategy.FindTarget<List<Enemy>>(this, enemies);
+            }
+            _fireRate += (float)gameTime.ElapsedGameTime.TotalSeconds;
+        }
+
+        protected override void SubscribeEvents(TowerMenuElement element)
+        {
+            element.SellTowerEvent += OnTowerSelled;
+            element.UpgradeTowerEvent += OnTowerUpgraded;
+            element.RepairTowerEvent += OnTowerRepaired;
+        }
+
+        protected override void UnSubscribeEvents(TowerMenuElement element)
+        {
+            element.UpgradeTowerEvent -= OnTowerUpgraded;
+            element.RepairTowerEvent -= OnTowerRepaired;
+        }
+    }
+
+    public class TowerStats
+    {
+        public TowerType Type { get; private set; }
+        public SpriteFont Font { get; private set; }
+        public Texture2D Texture { get; private set; }
+        public float Range { get; private set; }
+        public float FireRate { get; private set; }
+        public Texture2D BulletTexture { get; private set; }
+        public float BulletDamage { get; private set; }
+        public float BulletSpeed { get; private set; }
+        public float MaxHealth { get; private set; }
+
+        public TowerStats(Texture2D texture, float range, float fireRate, Texture2D bulletTexture, float bulletDamage, float bulletSpeed, SpriteFont font, TowerType type, float maxHealth)
+        {
+            Type = type;
+            Texture = texture;
+            Range = range;
+            FireRate = fireRate;
+            BulletTexture = bulletTexture;
+            BulletDamage = bulletDamage;
+            BulletSpeed = bulletSpeed;
+            Font = font;
+            MaxHealth = maxHealth;
         }
     }
 }

@@ -3,10 +3,10 @@ using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using MonoGame.Extended.Graphics;
-using SharpDX.Direct2D1.Effects;
+using OOP_Project.Entities;
+using OOP_Project.Strategies;
 using System;
 using System.Collections.Generic;
-using OOP_Project.Entities;
 
 
 namespace OOP_Project.Scenes
@@ -17,26 +17,18 @@ namespace OOP_Project.Scenes
         private List<Bullet> _bullets = new List<Bullet>();
         private List<Tower> _towers = new List<Tower>();
         private List<TowerPlace> _towerPlaces = new List<TowerPlace>();
-        private List<Vector2> _towerPositions = new List<Vector2>()
-        {
-            new Vector2(100, 100),
-            new Vector2(200, 200),
-            new Vector2(300, 300),
-            new Vector2(400, 900),
-            new Vector2(500, 800),
-            new Vector2(600, 700),
-            new Vector2(1000, 700),
-            new Vector2(200, 700),
-            new Vector2(100, 900),
-            new Vector2(1200, 800),
-        };
+        private List<Vector2> _towerPositions;
+        private List<Vector2> _splinePoints;
+        private RoadType _roadType;
         private GameManager _gameManager;
         private WaveManager _waveManager;
         private GameAssets _gameAssets;
 
-        public GamePlayScene(Game1 game) : base(game)
+        public GamePlayScene(Game1 game, List<Vector2> towerPositions, List<Vector2> splinePoints, RoadType roadType) : base(game)
         { 
-            _game = game;
+            _towerPositions = towerPositions;
+            _splinePoints = splinePoints;
+            _roadType = roadType;
         }
 
         public override void Initialize()
@@ -56,11 +48,16 @@ namespace OOP_Project.Scenes
             {
                 _towerPlaces.Add(new TowerPlace(towerPosition, _gameAssets.TowerPlaceTexture, _gameAssets.TowerTextures));
             }
-            _gameManager = new GameManager(_towerPlaces, _towers, _gameAssets.MenuElementsTextures, _gameAssets.TowerTextures, _gameAssets.BulletTextures, _gameAssets.EnemyTextures, _font, _gameAssets.Atlas);
+            _gameManager = new GameManager(_towerPlaces, _towers, _gameAssets.MenuElementsTextures, 
+                _gameAssets.TowerTextures, _gameAssets.BulletTextures, _gameAssets.EnemyTextures, 
+                _font, _gameAssets.Atlas, _splinePoints);
         }
         public override void Update(GameTime gameTime)
         {
-            _waveManager.Update(gameTime);
+            if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed || Keyboard.GetState().IsKeyDown(Keys.Escape))
+                _game.SceneManager.PushScene(new PauseScene(_game));
+
+            _waveManager.Update(gameTime, _enemies.Count);
             _gameManager.Update(gameTime, _enemies, _gameAssets.EnemyTextures, _bullets, _waveManager.IsWaveActive);
             _enemies.RemoveAll(enemy => enemy.GetActive() == false);
             for (int i = 0; i < _enemies.Count; i++)
@@ -69,7 +66,7 @@ namespace OOP_Project.Scenes
                 _enemies[i].Update(gameTime);
                 if (_enemies[i].Position == _enemies[i].Points[^1])
                 {
-                    _game.SceneManager.PushScene(new GameOverScene(_game));
+                    _game.SceneManager.PushScene(new GameOverScene(_game, "Игра окончена"));
                     return;
                 }
             }
@@ -94,6 +91,7 @@ namespace OOP_Project.Scenes
         }
         public override void Draw(GameTime gameTime, SpriteBatch spriteBatch)
         {
+            spriteBatch.Draw(_gameAssets.RoadTextures[_roadType], Vector2.Zero, Color.Brown);
             _waveManager.Draw(spriteBatch, _gameAssets.FontUI);
 
             foreach (var enemy in _enemies)
@@ -119,7 +117,7 @@ namespace OOP_Project.Scenes
         }
         private void OnLevelWon()
         {
-            _game.SceneManager.ChangeScene(new GameOverScene(_game));
+            _game.SceneManager.PushScene(new GameOverScene(_game, "Вы победили"));
             _waveManager.WinLevel -= OnLevelWon;
         }
 
@@ -136,6 +134,7 @@ namespace OOP_Project.Scenes
         public List<Texture2D> EnemyTextures { get; private set; }
         public List<Texture2D> BulletTextures { get; private set; }
         public List<Texture2D> MenuElementsTextures { get; private set; }
+        public Dictionary<RoadType, Texture2D> RoadTextures { get; private set; }
         public Texture2D Pixel { get; private set; }
         public Texture2DAtlas Atlas { get; private set; }
         public Texture2D TowerPlaceTexture { get; private set; }
@@ -143,6 +142,14 @@ namespace OOP_Project.Scenes
 
         public void Load(ContentManager content, GraphicsDevice graphicsDevice)
         {
+            RoadTextures = new Dictionary<RoadType, Texture2D>
+            {
+                { RoadType.Road1, content.Load<Texture2D>("Road1") },
+                { RoadType.Road2, content.Load<Texture2D>("Road2") },
+                { RoadType.Road3, content.Load<Texture2D>("Road3") },
+                { RoadType.Road4, content.Load<Texture2D>("Road4") },
+                { RoadType.Road5, content.Load<Texture2D>("Road5") },
+            };
             TowerTextures = new List<Texture2D>()
             {
                 content.Load<Texture2D>("Tower"),
@@ -177,70 +184,6 @@ namespace OOP_Project.Scenes
             Atlas = content.Load<Texture2DAtlas>("spritesheet");
         }
 
-    }
-
-    public interface IStrategy
-    {
-        string Name { get; }
-        T FindTarget<T>(Tower tower, List<Enemy> enemies);
-    }
-
-    public enum EnemyType
-    {
-        Standart,
-        Fast,
-        Resist,
-        Spike
-    }
-
-    public class EnemyStats
-    {
-        public Texture2D Texture {  get; private set; }
-        public float Health { get; private set; }
-        public float Speed { get; private set; }
-        public EnemyType Type { get; private set; }
-
-        public EnemyStats(Texture2D texture, float health, float speed, EnemyType type)
-        {
-            Texture = texture;
-            Health = health;
-            Speed = speed;
-            Type = type;
-        }
-    }
-
-    public class StandartEnemy : Enemy
-    {
-        public StandartEnemy(EnemyStats stats, float randomPath, Texture2DAtlas atlas) : base(stats, randomPath, atlas) { }
-    }
-
-    public class FastEnemy : Enemy
-    {
-        public FastEnemy(EnemyStats stats, float randomPath) : base(stats, randomPath) { }
-    }
-
-    public class ResistEnemy : Enemy
-    {
-        public ResistEnemy(EnemyStats stats, float randomPath) : base(stats, randomPath) { }
-        public override void TakeDamage(float damage)
-        {
-            _health -= damage * 0.75f;
-            if (_health <= 0f)
-            {
-                IsActive = false;
-            }
-        }
-    }
-
-    public class SpikeEnemy : Enemy
-    {
-        private float _spikeDamage = 10f;
-        public SpikeEnemy(EnemyStats stats, float randomPath) : base(stats, randomPath) { }
-
-        public float TakeSpikeDamage()
-        {
-            return _spikeDamage;
-        }
     }
 
     public class SplinePoint
@@ -310,235 +253,6 @@ namespace OOP_Project.Scenes
         }
     }
 
-    public enum TowerType
-    {
-        Basic,
-        Cannon,
-        MachineGun,
-        ManyTargets
-    }
-
-    public class BasicTower : Tower
-    {
-        public BasicTower(Vector2 position, TowerStats stats, TowerPlace towerPlace, List<Texture2D> menuElementsTextures, List<IStrategy> strategies)
-            : base(position, stats, towerPlace, menuElementsTextures, strategies) { }
-    }
-
-    public class CannonTower : Tower
-    {
-        public CannonTower(Vector2 position, TowerStats stats, TowerPlace towerPlace, List<Texture2D> menuElementsTextures, List<IStrategy> strategies)
-            : base(position, stats, towerPlace, menuElementsTextures, strategies) { }
-
-        public override void GetDamage(float damage)
-        {
-            damage *= 3;
-            base.GetDamage(damage);
-        }
-    }
-
-    public class MachineGunTower : Tower
-    {
-        public MachineGunTower(Vector2 position, TowerStats stats, TowerPlace towerPlace, List<Texture2D> menuElementsTextures, List<IStrategy> strategies)
-            : base(position, stats, towerPlace, menuElementsTextures, strategies)
-        {
-            _attackCooldown = _fireRate;
-        }
-
-        protected override void FireAtCurrentTarget(GameTime gameTime, List<Enemy> enemies)
-        {
-            if (_currentTarget != null)
-            {
-                if (!_currentTarget.GetActive())
-                {
-                    _currentTarget = null;
-                    return;
-                }
-                Aim(_currentTarget);
-                if (_fireRate >= _attackCooldown)
-                {
-                    Shoot(_currentTarget);
-                    _fireRate = 0f;
-                    if (_attackCooldown >= 0.5f)
-                    {
-                        _attackCooldown = MathF.Round(_attackCooldown - 5f * (float)gameTime.ElapsedGameTime.TotalSeconds, 2);
-                    }
-                }
-                CheckCurrentTargetPosition(_currentTarget);
-                _fireRate += (float)gameTime.ElapsedGameTime.TotalSeconds * 2f;
-            }
-            else if (_currentTarget == null)
-            {
-                _currentTarget = _strategy.FindTarget<Enemy>(this, enemies);
-            }
-        }
-    }
-
-    public class ManyTargetsTower : Tower
-    {
-        private List<Enemy> _currentTargets = new List<Enemy>();
-        public ManyTargetsTower(Vector2 position, TowerStats stats, TowerPlace towerPlace, List<Texture2D> menuElementsTextures, List<IStrategy> strategies)
-            : base(position, stats, towerPlace, menuElementsTextures, strategies)
-        {
-            _menuElements[^1].ChangeTexture(menuElementsTextures[4]);
-            _strategy = strategies[^1];
-        }
-
-        protected override void FireAtCurrentTarget(GameTime gameTime, List<Enemy> enemies)
-        {
-            if (_currentTargets.Count > 0)
-            {
-                if (_fireRate >= 1f)
-                {
-                    foreach (var target in _currentTargets)
-                    {
-                        Shoot(target);
-                        CheckCurrentTargetPosition(target);
-                        _fireRate = 0f;
-                    }
-                }
-                _currentTargets.Clear();
-            }
-            else if (_currentTargets.Count == 0)
-            {
-                _currentTargets = _strategy.FindTarget<List<Enemy>>(this, enemies);
-            }
-            _fireRate += (float)gameTime.ElapsedGameTime.TotalSeconds;
-        }
-
-        protected override void SubscribeEvents(TowerMenuElement element)
-        {
-            element.SellTowerEvent += OnTowerSelled;
-            element.UpgradeTowerEvent += OnTowerUpgraded;
-            element.RepairTowerEvent += OnTowerRepaired;
-        }
-
-        protected override void UnSubscribeEvents(TowerMenuElement element)
-        {
-            element.UpgradeTowerEvent -= OnTowerUpgraded;
-            element.RepairTowerEvent -= OnTowerRepaired;
-        }
-    }
-
-    public class ClosestAttackStrategy : IStrategy
-    {
-        public string Name { get; private set; } = "Ближайшая цель";
-        public T FindTarget<T>(Tower tower, List<Enemy> enemies)
-        {
-            Enemy target = null;
-            float lastTargetPosition = float.MaxValue;
-
-            foreach (var enemy in enemies)
-            {
-                float squareDistance = Vector2.DistanceSquared(tower.Position, enemy.Position);
-                if (squareDistance <= Math.Pow(tower.Stats.Range, 2) * tower.Scale && squareDistance < lastTargetPosition)
-                {
-                    lastTargetPosition = squareDistance;
-                    target = enemy;
-                }
-            }
-            return (T)(object)target;
-        }
-    }
-
-    public class FirstAttackStrategy : IStrategy
-    {
-        public string Name { get; private set; } = "Первая цель";
-        public T FindTarget<T>(Tower tower, List<Enemy> enemies)
-        {
-            Enemy target = null;
-            float lastTargetPosition = float.MaxValue;
-
-            foreach (var enemy in enemies)
-            {
-                float squareDistance = Vector2.DistanceSquared(tower.Position, enemy.Position);
-                if (squareDistance <= Math.Pow(tower.Stats.Range, 2) * tower.Scale && squareDistance < lastTargetPosition)
-                {
-                    lastTargetPosition = squareDistance;
-                    target = enemy;
-                    break;
-                }
-            }
-            return (T)(object)target;
-        }
-    }
-
-    public class MaxHPAttackStrategy : IStrategy
-    {
-        public string Name { get; private set; } = "Цель с наибольшим здоровьем";
-        public T FindTarget<T>(Tower tower, List<Enemy> enemies)
-        {
-            Enemy target = null;
-            float maxHP = float.MinValue;
-
-            foreach (var enemy in enemies)
-            {
-                float squareDistance = Vector2.DistanceSquared(tower.Position, enemy.Position);
-                if (squareDistance <= Math.Pow(tower.Stats.Range, 2) * tower.Scale && enemy.GetHealth() > maxHP)
-                {
-                    target = enemy;
-                }
-            }
-            return (T)(object)target;
-        }
-    }
-
-    public class AllInRangeAttackStrategy : IStrategy
-    {
-        public string Name { get; private set; } = "Все цели в радиусе";
-        public T FindTarget<T>(Tower tower, List<Enemy> enemies)
-        {
-            List<Enemy> targets = new List<Enemy>();
-
-            foreach (var enemy in enemies)
-            {
-                float squareDistance = Vector2.DistanceSquared(tower.Position, enemy.Position);
-                if (squareDistance <= Math.Pow(tower.Stats.Range, 2) * tower.Scale)
-                {
-                    targets.Add(enemy);
-                }
-            }
-            return (T)(object)targets;
-        }
-    }
-
-    public enum ElementType
-    {
-        BasicTower,
-        CannonTower,
-        MachineGunTower,
-        ManyTargetsTower,
-        Sell,
-        Upgrade,
-        Repair,
-        Strategy
-    }
-
-    public class TowerStats
-    {
-        public TowerType Type { get; private set; }
-        public SpriteFont Font { get; private set; }
-        public Texture2D Texture { get; private set; }
-        public float Range { get; private set; }
-        public float FireRate { get; private set; }
-        public Texture2D BulletTexture { get; private set; }
-        public float BulletDamage { get; private set; }
-        public float BulletSpeed { get; private set; }
-        public float MaxHealth { get; private set; }
-
-        public TowerStats(Texture2D texture, float range, float fireRate, Texture2D bulletTexture, float bulletDamage, float bulletSpeed, SpriteFont font, TowerType type, float maxHealth)
-        {
-            Type = type;
-            Texture = texture;
-            Range = range;
-            FireRate = fireRate;
-            BulletTexture = bulletTexture;
-            BulletDamage = bulletDamage;
-            BulletSpeed = bulletSpeed;
-            Font = font;
-            MaxHealth = maxHealth;
-        }
-    }
-
     public class BulletPool
     {
         private List<Bullet> _bullets = new List<Bullet>();
@@ -598,7 +312,7 @@ namespace OOP_Project.Scenes
         private float _timer = 0f;
         private Random _randomizedEnemy;
 
-        public GameManager(List<TowerPlace> places, List<Tower> towers, List<Texture2D> menuElementsTextures, List<Texture2D> towerTextures, List<Texture2D> bulletTextures, List<Texture2D> enemyTextures, SpriteFont font, Texture2DAtlas atlas)
+        public GameManager(List<TowerPlace> places, List<Tower> towers, List<Texture2D> menuElementsTextures, List<Texture2D> towerTextures, List<Texture2D> bulletTextures, List<Texture2D> enemyTextures, SpriteFont font, Texture2DAtlas atlas, List<Vector2> splinePoints)
         {
             _randomizedEnemy = new Random();
             _places = places;
@@ -608,7 +322,7 @@ namespace OOP_Project.Scenes
             CreateTowerConfigs(towerTextures, bulletTextures, font);
             CreateTowerFactories();
             CreateEnemyConfigs(enemyTextures);
-            CreateEnemyFactories();
+            CreateEnemyFactories(splinePoints);
             foreach (var place in _places)
             {
                 place.CreateTower += OnTowerCreated;
@@ -688,13 +402,13 @@ namespace OOP_Project.Scenes
             _enemyConfigs.Add(enemyTextures[3], new EnemyStats(enemyTextures[3], 80f, 100f, EnemyType.Spike));
         }
 
-        private void CreateEnemyFactories()
+        private void CreateEnemyFactories(List<Vector2> splinePoints)
         {
             _enemyConfigsFactory = new Dictionary<EnemyType, Func<EnemyStats, Enemy>>();
-            _enemyConfigsFactory.Add(EnemyType.Standart, (stats) => new StandartEnemy(stats, _randomizedEnemy.Next(-25, 26), _atlas));
-            _enemyConfigsFactory.Add(EnemyType.Fast, (stats) => new FastEnemy(stats, _randomizedEnemy.Next(-25, 26)));
-            _enemyConfigsFactory.Add(EnemyType.Resist, (stats) => new ResistEnemy(stats, _randomizedEnemy.Next(-25, 26)));
-            _enemyConfigsFactory.Add(EnemyType.Spike, (stats) => new SpikeEnemy(stats, _randomizedEnemy.Next(-25, 26)));
+            _enemyConfigsFactory.Add(EnemyType.Standart, (stats) => new StandartEnemy(stats, _randomizedEnemy.Next(-25, 26), splinePoints, _atlas));
+            _enemyConfigsFactory.Add(EnemyType.Fast, (stats) => new FastEnemy(stats, _randomizedEnemy.Next(-25, 26), splinePoints));
+            _enemyConfigsFactory.Add(EnemyType.Resist, (stats) => new ResistEnemy(stats, _randomizedEnemy.Next(-25, 26), splinePoints));
+            _enemyConfigsFactory.Add(EnemyType.Spike, (stats) => new SpikeEnemy(stats, _randomizedEnemy.Next(-25, 26), splinePoints));
         }
 
         public void UnloadLevel()
@@ -719,6 +433,7 @@ namespace OOP_Project.Scenes
         private float _countOfWaves = 0f;
         private float _maxCountOfWaves = 5f;
         private bool _hasWon = false;
+        private int _countOfEnemies;
         public bool IsWaveActive { get; private set; }
         public event Action WinLevel;
 
@@ -727,33 +442,39 @@ namespace OOP_Project.Scenes
             _timer = 0f;
         }
 
-        public void Update(GameTime gameTime)
+        public void Update(GameTime gameTime, int enemiesCount)
         {
-            if (_countOfWaves >= _maxCountOfWaves && !_hasWon)
+            _countOfEnemies = enemiesCount;
+            if (_countOfWaves >= _maxCountOfWaves && !_hasWon && _countOfEnemies == 0)
             {
                 _hasWon = true;
                 WinLevel?.Invoke();
             }
-
-            _timer += (float)gameTime.ElapsedGameTime.TotalSeconds;
-
-            if (_timer >= _timeToStartWave && _countOfWaves < _maxCountOfWaves)
+            if (_timer < (_timeToEndWave + _timeToStartWave))
             {
-                IsWaveActive = true;
-                if (_timer >= (_timeToEndWave + _timeToStartWave))
+                _timer += (float)gameTime.ElapsedGameTime.TotalSeconds;
+            }
+            if (_timer >= (_timeToEndWave + _timeToStartWave))
+            {
+                if (_countOfEnemies == 0)
                 {
-                    IsWaveActive = false;
                     _timer = 0f;
                     _countOfWaves += 1f;
                 }
+                IsWaveActive = false;
+            }
+            else if (_timer >= _timeToStartWave && _countOfWaves < _maxCountOfWaves && _countOfEnemies == 0)
+            {
+                IsWaveActive = true;
             }
         }
 
         public void Draw(SpriteBatch spriteBatch, SpriteFont font)
         {
-            if (IsWaveActive) 
+            if (IsWaveActive || _countOfEnemies > 0) 
             {
                 spriteBatch.DrawString(font, $"До конца волны: {(int)((_timeToEndWave + _timeToStartWave) - _timer)}", new Vector2(800, 50), Color.White);
+                spriteBatch.DrawString(font, $"Осталось врагов: {_countOfEnemies}", new Vector2(800, 75), Color.White);
             }
             else
             {
@@ -762,4 +483,5 @@ namespace OOP_Project.Scenes
             }
         }
     }
+
 }
