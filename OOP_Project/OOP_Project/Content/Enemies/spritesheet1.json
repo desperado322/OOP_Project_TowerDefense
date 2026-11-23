@@ -1,24 +1,32 @@
 {
 	"textures": [
 		{
-			"filename": "spritesheet-texture.png",
+			"filename": "spritesheet-texture1.png",
 			"format": "RGBA8888",
-			"size": {"w":408,"h":102},
+			"size": {"w":612,"h":102},
 			"frames": {
-				"Sprite-1":{
+				"Sprite-0001":{
 					"frame": {"x":1,"y":1,"w":100,"h":100},
 					"pivot": {"x":0.5,"y":0.5}
 				},
-				"Sprite-2":{
+				"Sprite-0002":{
 					"frame": {"x":103,"y":1,"w":100,"h":100},
 					"pivot": {"x":0.5,"y":0.5}
 				},
-				"Sprite-3":{
+				"Sprite-0003":{
 					"frame": {"x":205,"y":1,"w":100,"h":100},
 					"pivot": {"x":0.5,"y":0.5}
 				},
-				"Sprite-4":{
+				"Sprite-0004":{
 					"frame": {"x":307,"y":1,"w":100,"h":100},
+					"pivot": {"x":0.5,"y":0.5}
+				},
+				"Sprite-0005":{
+					"frame": {"x":409,"y":1,"w":100,"h":100},
+					"pivot": {"x":0.5,"y":0.5}
+				},
+				"Sprite-0006":{
+					"frame": {"x":511,"y":1,"w":100,"h":100},
 					"pivot": {"x":0.5,"y":0.5}
 				}
 			}
@@ -29,6 +37,6 @@
 		"app": "https://www.codeandweb.com/texturepacker",
 		"dataformat": "monogame-extended",
 		"version": "1.2",
-		"smartupdate": "$TexturePacker:SmartUpdate:05eb5b8c1cc4b3f22c714e5ea9dfd7ec:f70a3f504ac76a665d9f6e2f9c5b55f3:a76cd7b7594a71bdeeda095dddf9389b$"
+		"smartupdate": "$TexturePacker:SmartUpdate:a67eb23f7d65fa9e5817c646a37b0d42:36a71be75210fb562d402286388e4f6c:a76cd7b7594a71bdeeda095dddf9389b$"
 	}
 }

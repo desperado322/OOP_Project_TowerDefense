@@ -1,0 +1,55 @@
+{
+	"textures": [
+		{
+			"filename": "spritesheet2-texture.png",
+			"format": "RGBA8888",
+			"size": {"w":78,"h":364},
+			"frames": {
+				"Sprite-0001":{
+					"frame": {"x":1,"y":71,"w":75,"h":74},
+					"size": {"w":100,"h":100},
+					"offset": {"x":15,"y":13},
+					"pivot": {"x":0.5,"y":0.5}
+				},
+				"Sprite-0002":{
+					"frame": {"x":1,"y":295,"w":72,"h":68},
+					"size": {"w":100,"h":100},
+					"offset": {"x":18,"y":16},
+					"pivot": {"x":0.5,"y":0.5}
+				},
+				"Sprite-0003":{
+					"frame": {"x":1,"y":147,"w":75,"h":72},
+					"size": {"w":100,"h":100},
+					"offset": {"x":15,"y":15},
+					"pivot": {"x":0.5,"y":0.5}
+				},
+				"Sprite-0004":{
+					"frame": {"x":1,"y":71,"w":75,"h":74},
+					"size": {"w":100,"h":100},
+					"offset": {"x":15,"y":12},
+					"pivot": {"x":0.5,"y":0.5}
+				},
+				"Sprite-0005":{
+					"frame": {"x":1,"y":1,"w":76,"h":68},
+					"size": {"w":100,"h":100},
+					"offset": {"x":15,"y":16},
+					"pivot": {"x":0.5,"y":0.5}
+				},
+				"Sprite-0006":{
+					"frame": {"x":1,"y":221,"w":73,"h":72},
+					"rotated": 90,
+					"size": {"w":100,"h":100},
+					"offset": {"x":19,"y":13},
+					"pivot": {"x":0.5,"y":0.5}
+				}
+			}
+		}
+	],
+
+	"meta": {
+		"app": "https://www.codeandweb.com/texturepacker",
+		"dataformat": "monogame-extended",
+		"version": "1.2",
+		"smartupdate": "$TexturePacker:SmartUpdate:3b382f8e171d59c47be7b23e601ad326:5f72eac095c7f6e0ec009d32b024239a:4fb757a69bb7d062eab14ec559efb92c$"
+	}
+}

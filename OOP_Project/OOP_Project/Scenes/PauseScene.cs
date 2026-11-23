@@ -30,7 +30,7 @@ namespace OOP_Project.Scenes
         {
             _pixel = new Texture2D(_graphicsDevice, 1, 1);
             _pixel.SetData(new[] { Color.White });
-            _fontUI = _contentManager.Load<SpriteFont>("UI Font");
+            _fontUI = _contentManager.Load<SpriteFont>("Fonts/UI Font");
             _pivot = _fontUI.MeasureString(_menuButtonText) / 2f;
         }
 

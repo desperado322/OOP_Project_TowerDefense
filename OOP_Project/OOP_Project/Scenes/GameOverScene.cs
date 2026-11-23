@@ -33,7 +33,7 @@ namespace OOP_Project.Scenes
         }
         public override void LoadContent()
         {
-            _font = _contentManager.Load<SpriteFont>("UI Font");
+            _font = _contentManager.Load<SpriteFont>("Fonts/UI Font");
             _pixel = new Texture2D(_graphicsDevice, 1, 1);
             _pixel.SetData(new[] { Color.White });
             _pivot = _font.MeasureString(_restartButtonText) / 2f;

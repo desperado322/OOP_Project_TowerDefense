@@ -45,10 +45,10 @@ namespace OOP_Project.Scenes
         public override void LoadContent()
         {
             _gameAssets.Load(_contentManager, _graphicsDevice); 
-            _font = _contentManager.Load<SpriteFont>("Font1");
+            _font = _contentManager.Load<SpriteFont>("Fonts/Font1");
             _gameManager = new GameManager(_towerPlaces, _towerPositions, _gameAssets.TowerPlaceTexture, _towers, _gameAssets.MenuElementsTextures, 
                 _gameAssets.TowerTextures, _gameAssets.BulletTextures, _gameAssets.EnemyTextures, 
-                _font, _gameAssets.Atlas, _splinePoints);
+                _font, _gameAssets.Atlases, _splinePoints);
             _economyManager = new EconomyManager(_gameManager);
         }
         public override void Update(GameTime gameTime)
@@ -139,7 +139,7 @@ namespace OOP_Project.Scenes
         public List<Texture2D> MenuElementsTextures { get; private set; }
         public Dictionary<RoadType, Texture2D> RoadTextures { get; private set; }
         public Texture2D Pixel { get; private set; }
-        public Texture2DAtlas Atlas { get; private set; }
+        public List<Texture2DAtlas> Atlases { get; private set; }
         public Texture2D TowerPlaceTexture { get; private set; }
         public SpriteFont FontUI { get; private set; }
 
@@ -147,44 +147,48 @@ namespace OOP_Project.Scenes
         {
             RoadTextures = new Dictionary<RoadType, Texture2D>
             {
-                { RoadType.Road1, content.Load<Texture2D>("Road1") },
-                { RoadType.Road2, content.Load<Texture2D>("Road2") },
-                { RoadType.Road3, content.Load<Texture2D>("Road3") },
-                { RoadType.Road4, content.Load<Texture2D>("Road4") },
-                { RoadType.Road5, content.Load<Texture2D>("Road5") },
+                { RoadType.Road1, content.Load<Texture2D>("Roads/Road1") },
+                { RoadType.Road2, content.Load<Texture2D>("Roads/Road2") },
+                { RoadType.Road3, content.Load<Texture2D>("Roads/Road3") },
+                { RoadType.Road4, content.Load<Texture2D>("Roads/Road4") },
+                { RoadType.Road5, content.Load<Texture2D>("Roads/Road5") },
             };
             TowerTextures = new List<Texture2D>()
             {
-                content.Load<Texture2D>("Tower"),
-                content.Load<Texture2D>("Tower2"),
-                content.Load<Texture2D>("Tower3"),
-                content.Load<Texture2D>("Tower4")
+                content.Load<Texture2D>("Towers/Tower"),
+                content.Load<Texture2D>("Towers/Tower2"),
+                content.Load<Texture2D>("Towers/Tower3"),
+                content.Load<Texture2D>("Towers/Tower4")
             };
             EnemyTextures = new List<Texture2D>()
             {
-                content.Load<Texture2D>("Enemy"),
-                content.Load<Texture2D>("Enemy2"),
-                content.Load<Texture2D>("Enemy3"),
-                content.Load<Texture2D>("Enemy4")
+                content.Load<Texture2D>("Enemies/Enemy"),
+                content.Load<Texture2D>("Enemies/Enemy2"),
+                content.Load<Texture2D>("Enemies/Enemy3"),
+                content.Load<Texture2D>("Enemies/Enemy4")
             };
             BulletTextures = new List<Texture2D>()
             {
-                content.Load<Texture2D>("Bullet"),
-                content.Load<Texture2D>("Bullet2")
+                content.Load<Texture2D>("Bullets/Bullet"),
+                content.Load<Texture2D>("Bullets/Bullet2")
             };
             MenuElementsTextures = new List<Texture2D>()
             {
-                content.Load<Texture2D>("Sell"),
-                content.Load<Texture2D>("Upgrade"),
-                content.Load<Texture2D>("Repair"),
-                content.Load<Texture2D>("Strategy"),
-                content.Load<Texture2D>("BlockStrategy")
+                content.Load<Texture2D>("TowerUI/Sell"),
+                content.Load<Texture2D>("TowerUI/Upgrade"),
+                content.Load<Texture2D>("TowerUI/Repair"),
+                content.Load<Texture2D>("TowerUI/Strategy"),
+                content.Load<Texture2D>("TowerUI/BlockStrategy")
+            };
+            Atlases = new List<Texture2DAtlas>()
+            {
+                content.Load<Texture2DAtlas>("Enemies/spritesheet1"),
+                content.Load<Texture2DAtlas>("Enemies/spritesheet2")
             };
             Pixel = new Texture2D(graphicsDevice, 1, 1);
             Pixel.SetData(new[] { Color.White });
-            TowerPlaceTexture = content.Load<Texture2D>("TowerPlace");
-            FontUI = content.Load<SpriteFont>("UI Font");
-            Atlas = content.Load<Texture2DAtlas>("spritesheet");
+            TowerPlaceTexture = content.Load<Texture2D>("Towers/TowerPlace");
+            FontUI = content.Load<SpriteFont>("Fonts/UI Font");
         }
 
     }
@@ -306,7 +310,7 @@ namespace OOP_Project.Scenes
         private Dictionary<Texture2D, EnemyStats> _enemyConfigs = new Dictionary<Texture2D, EnemyStats>();
         private Dictionary<TowerType, Func<TowerPlace, TowerStats, Tower>> _towerConfigsFactory;
         private Dictionary<EnemyType, Func<EnemyStats, Enemy>> _enemyConfigsFactory;
-        private Texture2DAtlas _atlas;
+        private List<Texture2DAtlas> _atlases;
         private List<TowerPlace> _places;
         private List<Tower> _towers;
         private List<IStrategy> _strategies = new List<IStrategy>() { new ClosestAttackStrategy(), new MaxHPAttackStrategy(), new FirstAttackStrategy(), new AllInRangeAttackStrategy() };
@@ -321,12 +325,12 @@ namespace OOP_Project.Scenes
         public event Action<float> UpgradeTower;
         public event Action<float> SellTower;
 
-        public GameManager(List<TowerPlace> places, List<Vector2> towerPositions, Texture2D placeTexture, List<Tower> towers, List<Texture2D> menuElementsTextures, List<Texture2D> towerTextures, List<Texture2D> bulletTextures, List<Texture2D> enemyTextures, SpriteFont font, Texture2DAtlas atlas, List<Vector2> splinePoints)
+        public GameManager(List<TowerPlace> places, List<Vector2> towerPositions, Texture2D placeTexture, List<Tower> towers, List<Texture2D> menuElementsTextures, List<Texture2D> towerTextures, List<Texture2D> bulletTextures, List<Texture2D> enemyTextures, SpriteFont font, List<Texture2DAtlas> atlases, List<Vector2> splinePoints)
         {
             _randomizedEnemy = new Random();
             _towers = towers;
             _menuElementsTextures = menuElementsTextures;
-            _atlas = atlas;
+            _atlases = atlases;
             CreateTowerConfigs(towerTextures, bulletTextures, font);
             CreateTowerFactories();
             CreateEnemyConfigs(enemyTextures);
@@ -446,8 +450,8 @@ namespace OOP_Project.Scenes
         private void CreateEnemyFactories(List<Vector2> splinePoints)
         {
             _enemyConfigsFactory = new Dictionary<EnemyType, Func<EnemyStats, Enemy>>();
-            _enemyConfigsFactory.Add(EnemyType.Standart, (stats) => new StandartEnemy(stats, _randomizedEnemy.Next(-25, 26), splinePoints, _atlas));
-            _enemyConfigsFactory.Add(EnemyType.Fast, (stats) => new FastEnemy(stats, _randomizedEnemy.Next(-25, 26), splinePoints));
+            _enemyConfigsFactory.Add(EnemyType.Standart, (stats) => new StandartEnemy(stats, _randomizedEnemy.Next(-25, 26), splinePoints, _atlases[(int)EnemyType.Standart]));
+            _enemyConfigsFactory.Add(EnemyType.Fast, (stats) => new FastEnemy(stats, _randomizedEnemy.Next(-25, 26), splinePoints, _atlases[(int)EnemyType.Fast]));
             _enemyConfigsFactory.Add(EnemyType.Resist, (stats) => new ResistEnemy(stats, _randomizedEnemy.Next(-25, 26), splinePoints));
             _enemyConfigsFactory.Add(EnemyType.Spike, (stats) => new SpikeEnemy(stats, _randomizedEnemy.Next(-25, 26), splinePoints));
         }
