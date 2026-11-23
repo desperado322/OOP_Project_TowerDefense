@@ -93,14 +93,16 @@ namespace OOP_Project.Entities
             SpriteSheet spriteSheet = new SpriteSheet("EnemyRun", _atlas);
             spriteSheet.DefineAnimation(run, builder =>
             {
-                builder.IsLooping(true).AddFrame($"Sprite-1", TimeSpan.FromSeconds(0.1f))
-                .AddFrame($"Sprite-2", TimeSpan.FromSeconds(0.2f))
-                .AddFrame($"Sprite-3", TimeSpan.FromSeconds(0.3f))
-                .AddFrame($"Sprite-4", TimeSpan.FromSeconds(0.4f))
-                .AddFrame($"Sprite-1", TimeSpan.FromSeconds(0.5f))
-                .AddFrame($"Sprite-2", TimeSpan.FromSeconds(0.6f))
-                .AddFrame($"Sprite-3", TimeSpan.FromSeconds(0.7f))
-                .AddFrame($"Sprite-4", TimeSpan.FromSeconds(0.8f));
+                builder.IsLooping(true).AddFrame($"Sprite-0001", TimeSpan.FromSeconds(0.1f))
+                .AddFrame($"Sprite-0002", TimeSpan.FromSeconds(0.2f))
+                .AddFrame($"Sprite-0003", TimeSpan.FromSeconds(0.3f))
+                .AddFrame($"Sprite-0004", TimeSpan.FromSeconds(0.4f))
+                .AddFrame($"Sprite-0005", TimeSpan.FromSeconds(0.5f))
+                .AddFrame($"Sprite-0001", TimeSpan.FromSeconds(0.6f))
+                .AddFrame($"Sprite-0002", TimeSpan.FromSeconds(0.7f))
+                .AddFrame($"Sprite-0003", TimeSpan.FromSeconds(0.8f))
+                .AddFrame($"Sprite-0004", TimeSpan.FromSeconds(0.9f))
+                .AddFrame($"Sprite-0005", TimeSpan.FromSeconds(0.95f));
             });
             _animatedSprite = new AnimatedSprite(spriteSheet, run);
             _animatedSprite.Origin = new Vector2(_animatedSprite.TextureRegion.Width / 2f, _animatedSprite.TextureRegion.Height / 2f);
@@ -164,7 +166,7 @@ namespace OOP_Project.Entities
 
     public class FastEnemy : Enemy
     {
-        public FastEnemy(EnemyStats stats, float randomPath, List<Vector2> splinePoints) : base(stats, randomPath, splinePoints) { }
+        public FastEnemy(EnemyStats stats, float randomPath, List<Vector2> splinePoints, Texture2DAtlas atlas) : base(stats, randomPath, splinePoints, atlas) { }
     }
 
     public class ResistEnemy : Enemy

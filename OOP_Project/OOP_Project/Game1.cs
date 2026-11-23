@@ -41,7 +41,7 @@ namespace OOP_Project
         protected override void LoadContent()
         {
             SpriteBatch = new SpriteBatch(GraphicsDevice);
-            Font = Content.Load<SpriteFont>("Font1");
+            Font = Content.Load<SpriteFont>("Fonts/Font1");
         }
 
         protected override void Update(GameTime gameTime)
