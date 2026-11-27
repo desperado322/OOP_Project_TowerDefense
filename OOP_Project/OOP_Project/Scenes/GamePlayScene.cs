@@ -20,17 +20,20 @@ namespace OOP_Project.Scenes
         private List<TowerPlace> _towerPlaces = new List<TowerPlace>();
         private List<Vector2> _towerPositions;
         private List<Vector2> _splinePoints;
+        private List<Vector2> _basePosition;
         private RoadType _roadType;
         private GameManager _gameManager;
         private WaveManager _waveManager;
         private EconomyManager _economyManager;
         private GameAssets _gameAssets;
+        private Base _base;
 
-        public GamePlayScene(Game1 game, List<Vector2> towerPositions, List<Vector2> splinePoints, RoadType roadType) : base(game)
+        public GamePlayScene(Game1 game, List<Vector2> towerPositions, List<Vector2> splinePoints, RoadType roadType, List<Vector2> basePosition) : base(game)
         { 
             _towerPositions = towerPositions;
             _splinePoints = splinePoints;
             _roadType = roadType;
+            _basePosition = basePosition;
         }
 
         public override void Initialize()
@@ -41,12 +44,19 @@ namespace OOP_Project.Scenes
             _waveManager.WinLevel += OnLevelWon;
         }
 
+        private void OnHealthOver()
+        {
+            _base.OnHealthOver -= OnHealthOver;
+            _game.SceneManager.PushScene(new GameOverScene(_game, "Игра окончена"));
+        }
 
         public override void LoadContent()
         {
             _gameAssets.Load(_contentManager, _graphicsDevice); 
+            _base = new Base(10, _basePosition, _gameAssets.Base);
+            _base.OnHealthOver += OnHealthOver;
             _font = _contentManager.Load<SpriteFont>("Fonts/Font1");
-            _gameManager = new GameManager(_towerPlaces, _towerPositions, _gameAssets.TowerPlaceTexture, _towers, _gameAssets.MenuElementsTextures, 
+            _gameManager = new GameManager(_base, _towerPlaces, _towerPositions, _gameAssets.TowerPlaceTexture, _towers, _gameAssets.MenuElementsTextures, 
                 _gameAssets.TowerTextures, _gameAssets.BulletTextures, _gameAssets.EnemyTextures, 
                 _font, _gameAssets.Atlases, _splinePoints);
             _economyManager = new EconomyManager(_gameManager);
@@ -66,11 +76,6 @@ namespace OOP_Project.Scenes
             foreach (var enemy in _enemies)
             {
                 enemy.Update(gameTime);
-                if (enemy.Position == enemy.Points[^1])
-                {
-                    _game.SceneManager.PushScene(new GameOverScene(_game, "Игра окончена"));
-                    return;
-                }
             }
 
             foreach (var tower in _towers)
@@ -113,6 +118,7 @@ namespace OOP_Project.Scenes
             {
                 tower.Draw(spriteBatch);
             }
+            _base.Draw(spriteBatch, _gameAssets.Pixel);
             foreach (var tower in _towers)
             {
                 tower.DrawUI(spriteBatch, _gameAssets.Pixel, _font);
@@ -120,8 +126,8 @@ namespace OOP_Project.Scenes
         }
         private void OnLevelWon()
         {
-            _game.SceneManager.PushScene(new GameOverScene(_game, "Вы победили"));
             _waveManager.WinLevel -= OnLevelWon;
+            _game.SceneManager.PushScene(new GameOverScene(_game, "Вы победили"));
         }
 
         public override void UnloadContent()
@@ -139,6 +145,7 @@ namespace OOP_Project.Scenes
         public List<Texture2D> MenuElementsTextures { get; private set; }
         public Dictionary<RoadType, Texture2D> RoadTextures { get; private set; }
         public Texture2D Pixel { get; private set; }
+        public Texture2D Base { get; private set; }
         public List<Texture2DAtlas> Atlases { get; private set; }
         public Texture2D TowerPlaceTexture { get; private set; }
         public SpriteFont FontUI { get; private set; }
@@ -187,6 +194,7 @@ namespace OOP_Project.Scenes
             };
             Pixel = new Texture2D(graphicsDevice, 1, 1);
             Pixel.SetData(new[] { Color.White });
+            Base = content.Load<Texture2D>("Base");
             TowerPlaceTexture = content.Load<Texture2D>("Towers/TowerPlace");
             FontUI = content.Load<SpriteFont>("Fonts/UI Font");
         }
@@ -318,6 +326,7 @@ namespace OOP_Project.Scenes
         private float _timer = 0f;
         private float _currentBalance = 0f;
         private Random _randomizedEnemy;
+        private Base _base;
         public Dictionary<Texture2D, TowerStats> TowerConfigs { get; private set; } = new Dictionary<Texture2D, TowerStats>();
         public event Action<float> KillEnemy;
         public event Action<float> BuyTower;
@@ -325,8 +334,9 @@ namespace OOP_Project.Scenes
         public event Action<float> UpgradeTower;
         public event Action<float> SellTower;
 
-        public GameManager(List<TowerPlace> places, List<Vector2> towerPositions, Texture2D placeTexture, List<Tower> towers, List<Texture2D> menuElementsTextures, List<Texture2D> towerTextures, List<Texture2D> bulletTextures, List<Texture2D> enemyTextures, SpriteFont font, List<Texture2DAtlas> atlases, List<Vector2> splinePoints)
+        public GameManager(Base @base, List<TowerPlace> places, List<Vector2> towerPositions, Texture2D placeTexture, List<Tower> towers, List<Texture2D> menuElementsTextures, List<Texture2D> towerTextures, List<Texture2D> bulletTextures, List<Texture2D> enemyTextures, SpriteFont font, List<Texture2DAtlas> atlases, List<Vector2> splinePoints)
         {
+            _base = @base;
             _randomizedEnemy = new Random();
             _towers = towers;
             _menuElementsTextures = menuElementsTextures;
@@ -358,7 +368,11 @@ namespace OOP_Project.Scenes
             {
                 if (!enemies[i].IsActive)
                 {
-                    KillEnemy?.Invoke(enemies[i].Stats.Bounty);
+                    if (!enemies[i].IsReachEnd)
+                    {
+                        KillEnemy?.Invoke(enemies[i].Stats.Bounty);
+                    }
+                    enemies[i].ReachEnd -= OnReachedEnd;
                     enemies.RemoveAt(i);
                 }
             }
@@ -417,17 +431,24 @@ namespace OOP_Project.Scenes
                 if (_enemyConfigsFactory.TryGetValue(stats.Type, out var factory))
                 {
                     Enemy enemy = factory(stats);
+                    enemy.ReachEnd += OnReachedEnd;
                     enemies.Add(enemy);
                 }
                 _timer = 1f;
             }
         }
+
+        private void OnReachedEnd(int damage)
+        {
+            _base.GetDamage(damage);
+        }
+
         private void CreateTowerConfigs(List<Texture2D> towerTextures, List<Texture2D> bulletTextures, SpriteFont font)
         {
-            TowerConfigs.Add(towerTextures[0], new TowerStats(towerTextures[0], 400f, 2f, bulletTextures[0], 20f, 750f, font, TowerType.Basic, 150f, 50));
-            TowerConfigs.Add(towerTextures[1], new TowerStats(towerTextures[1], 400f, 5f, bulletTextures[1], 50f, 500f, font, TowerType.Cannon, 100f, 150));
-            TowerConfigs.Add(towerTextures[2], new TowerStats(towerTextures[2], 500f, 2f, bulletTextures[0], 15f, 750f, font, TowerType.MachineGun, 120f, 200));
-            TowerConfigs.Add(towerTextures[3], new TowerStats(towerTextures[3], 600f, 3f, bulletTextures[0], 10f, 600f, font, TowerType.ManyTargets, 200f, 300));
+            TowerConfigs.Add(towerTextures[0], new TowerStats(towerTextures[0], 200f, 2f, bulletTextures[0], 20f, 750f, font, TowerType.Basic, 150f, 50));
+            TowerConfigs.Add(towerTextures[1], new TowerStats(towerTextures[1], 200f, 5f, bulletTextures[1], 50f, 500f, font, TowerType.Cannon, 100f, 150));
+            TowerConfigs.Add(towerTextures[2], new TowerStats(towerTextures[2], 200f, 2f, bulletTextures[0], 15f, 750f, font, TowerType.MachineGun, 120f, 200));
+            TowerConfigs.Add(towerTextures[3], new TowerStats(towerTextures[3], 250f, 3f, bulletTextures[0], 10f, 600f, font, TowerType.ManyTargets, 200f, 300));
         }
 
         private void CreateTowerFactories()
@@ -441,10 +462,10 @@ namespace OOP_Project.Scenes
 
         private void CreateEnemyConfigs(List<Texture2D> enemyTextures)
         {
-            _enemyConfigs.Add(enemyTextures[0], new EnemyStats(enemyTextures[0], 100f, 100f, EnemyType.Standart, 20));
-            _enemyConfigs.Add(enemyTextures[1], new EnemyStats(enemyTextures[1], 50f, 150f, EnemyType.Fast, 30));
-            _enemyConfigs.Add(enemyTextures[2], new EnemyStats(enemyTextures[2], 200f, 50f, EnemyType.Resist, 50));
-            _enemyConfigs.Add(enemyTextures[3], new EnemyStats(enemyTextures[3], 80f, 100f, EnemyType.Spike, 40));
+            _enemyConfigs.Add(enemyTextures[0], new EnemyStats(enemyTextures[0], 100f, 100f, EnemyType.Standart, 20, 1));
+            _enemyConfigs.Add(enemyTextures[1], new EnemyStats(enemyTextures[1], 50f, 150f, EnemyType.Fast, 30, 1));
+            _enemyConfigs.Add(enemyTextures[2], new EnemyStats(enemyTextures[2], 200f, 50f, EnemyType.Resist, 50, 3));
+            _enemyConfigs.Add(enemyTextures[3], new EnemyStats(enemyTextures[3], 80f, 100f, EnemyType.Spike, 40, 2));
         }
 
         private void CreateEnemyFactories(List<Vector2> splinePoints)

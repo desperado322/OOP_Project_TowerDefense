@@ -47,7 +47,7 @@ namespace OOP_Project.Scenes
             Rectangle mousePosition = new Rectangle(Mouse.GetState().X, Mouse.GetState().Y, 2, 2);
             if (MouseExtended.GetState().WasButtonPressed(MouseButton.Left) && _startButton.Contains(mousePosition))
             {
-                _game.SceneManager.ChangeScene(new GamePlayScene(_game, _game.LevelSettings.GetTowerPositions(), _game.LevelSettings.GetSplinePoints(), _game.LevelSettings.GetRoadType()));
+                _game.SceneManager.ChangeScene(new GamePlayScene(_game, _game.LevelSettings.GetTowerPositions(), _game.LevelSettings.GetSplinePoints(), _game.LevelSettings.GetRoadType(), _game.LevelSettings.GetBasePosition()));
             }
 
             foreach (var levelButton in _levelButtons)

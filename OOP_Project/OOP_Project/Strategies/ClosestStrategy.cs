@@ -16,7 +16,7 @@ namespace OOP_Project.Strategies
             foreach (var enemy in enemies)
             {
                 float squareDistance = Vector2.DistanceSquared(tower.Position, enemy.Position);
-                if (squareDistance <= Math.Pow(tower.Stats.Range, 2) * tower.Scale && squareDistance < lastTargetPosition)
+                if (squareDistance <= Math.Pow(tower.Stats.Range, 2) && squareDistance < lastTargetPosition)
                 {
                     lastTargetPosition = squareDistance;
                     target = enemy;

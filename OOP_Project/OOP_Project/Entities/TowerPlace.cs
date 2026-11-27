@@ -78,7 +78,7 @@ namespace OOP_Project.Entities
             Scale = 0.5f;
             Position = position;
             Texture = texture;
-            Pivot = new Vector2(Texture.Width / 2, Texture.Height / 2);
+            SetPivot();
             UpdateBounds();
         }
 

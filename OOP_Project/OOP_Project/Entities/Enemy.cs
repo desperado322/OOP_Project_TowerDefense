@@ -17,6 +17,9 @@ namespace OOP_Project.Entities
         protected float _health;
         public EnemyStats Stats { get; private set; }
         public List<Vector2> Points;
+        public int Damage { get; private set; }
+        public bool IsReachEnd { get; private set; } = false;
+        public event Action<int> ReachEnd;
 
         public Enemy(EnemyStats stats, float randomPath, List<Vector2> splinePoints, Texture2DAtlas atlas = null)
         {
@@ -46,6 +49,12 @@ namespace OOP_Project.Entities
             {
                 _animatedSprite.Update(gameTime);
             }
+            if (Position == Points[^1])
+            {
+                IsReachEnd = true;
+                ReachEnd?.Invoke(Damage);
+                IsActive = false;
+            }
         }
         public void Draw(SpriteBatch spriteBatch)
         {
@@ -66,8 +75,9 @@ namespace OOP_Project.Entities
             _health = stats.Health;
             IsActive = true;
             Scale = 1f;
+            Damage = stats.Damage;
             Texture = stats.Texture;
-            Pivot = new Vector2(Texture.Width / 2, Texture.Height / 2);
+            SetPivot();
         }
         public virtual void TakeDamage(float damage)
         {
@@ -148,14 +158,16 @@ namespace OOP_Project.Entities
         public float Speed { get; private set; }
         public EnemyType Type { get; private set; }
         public float Bounty { get; private set; }
+        public int Damage { get; private set; }
 
-        public EnemyStats(Texture2D texture, float health, float speed, EnemyType type, float bounty)
+        public EnemyStats(Texture2D texture, float health, float speed, EnemyType type, float bounty, int damage)
         {
             Texture = texture;
             Health = health;
             Speed = speed;
             Type = type;
             Bounty = bounty;
+            Damage = damage;
         }
     }
 

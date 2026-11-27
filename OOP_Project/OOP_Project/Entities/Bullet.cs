@@ -17,7 +17,7 @@ namespace OOP_Project.Entities
         {
             Scale = 1f;
             Texture = texture;
-            Pivot = new Vector2(Texture.Height / 2, Texture.Width / 2);
+            SetPivot();
             _tower = tower;
             Position = _tower.Position;
             _speed = speed;

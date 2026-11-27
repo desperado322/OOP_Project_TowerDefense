@@ -121,12 +121,15 @@ namespace OOP_Project
 
         private List<List<Vector2>> _splinePoints;
 
+        private Dictionary<Vector2, List<Vector2>> _basePositions;
+
         public int CurrentLevel { get; private set; }
 
         public LevelSettings()
         {
             FillTowerPositions();
             FillSplinePoints();
+            FillBasePositions();
             CurrentLevel = 0;
         }
 
@@ -156,7 +159,7 @@ namespace OOP_Project
                     new (200, 700), new (600, 700), new (600, 700),
                     new (600, 100),  new (600, 100), new (1200, 100),
                     new (1200, 100), new (1200, 900), new (1200, 900),
-                    new (1900, 900), new (1900, 900)
+                    new (1920, 900), new (1920, 900)
                 },
                 new () {
                     new (0, 900), new (0, 900), new (400, 900),
@@ -176,9 +179,20 @@ namespace OOP_Project
                 new () {
                     new (200, 1100), new (200, 1100), new (200, 300),
                     new (200, 300), new (1600, 300), new (1600, 300),
-                    new (1600, 1100),  new (1600, 1100)
+                    new (1600, 1080),  new (1600, 1080)
                 }
             };
+        }
+
+        private void FillBasePositions()
+        {
+            _basePositions = new Dictionary<Vector2, List<Vector2>>();
+
+            _basePositions.Add(_splinePoints[0][^1], new List<Vector2>() { new Vector2(1600, 50), new Vector2(1550, 110) });
+            _basePositions.Add(_splinePoints[1][^1], new List<Vector2>() { new Vector2(1870, 900), new Vector2(1820, 960) });
+            _basePositions.Add(_splinePoints[2][^1], new List<Vector2>() { new Vector2(1700, 50), new Vector2(1650, 110) });
+            _basePositions.Add(_splinePoints[3][^1], new List<Vector2>() { new Vector2(100, 50), new Vector2(50, 110) });
+            _basePositions.Add(_splinePoints[4][^1], new List<Vector2>() { new Vector2(1600, 1030), new Vector2(1550, 945) });
         }
 
         public List<Vector2> GetTowerPositions()
@@ -189,6 +203,11 @@ namespace OOP_Project
         public List<Vector2> GetSplinePoints()
         {   
             return _splinePoints[CurrentLevel];
+        }
+
+        public List<Vector2> GetBasePosition()
+        {
+            return _basePositions[_splinePoints[CurrentLevel][^1]];
         }
 
         public RoadType GetRoadType()

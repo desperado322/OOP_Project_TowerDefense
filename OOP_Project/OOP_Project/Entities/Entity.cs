@@ -23,5 +23,10 @@ namespace OOP_Project.Entities
                 (int)(Texture.Height * Scale)
             );
         }
+
+        protected virtual void SetPivot()
+        {
+            Pivot = new Vector2(Texture.Width / 2, Texture.Height / 2);
+        }
     }
 }

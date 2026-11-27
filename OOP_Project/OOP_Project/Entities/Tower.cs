@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using Microsoft.Xna.Framework.Input;
 using OOP_Project.Strategies;
 using MonoGame.Extended.Input;
+using MonoGame.Extended;
 
 namespace OOP_Project.Entities
 {
@@ -108,6 +109,7 @@ namespace OOP_Project.Entities
                         $"Скорость пули: {_bulletSpeed} \n" +
                         $"Количество улучшений: {_countOfUpgrades} (max 5) \n" +
                         $"Текущий тип атаки: {_strategy.Name}", Position + new Vector2(150, -50) * Scale, Color.White);
+                    spriteBatch.DrawCircle(Position, _rangeShooting, 32, Color.White, 2f);
                 }
                 if (CurrentHealth < MaxHealth)
                 {
@@ -137,7 +139,7 @@ namespace OOP_Project.Entities
             CurrentHealth = MaxHealth;
             Scale = 0.5f;
             IsActive = true;
-            Pivot = new Vector2(Texture.Width / 2, Texture.Height / 2);
+            SetPivot();
             UpdateBounds();
         }
         protected void OnTowerSelled()
